@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bushido Leather — Watches, Wallets & Shoes</title>
+<meta name="description" content="Bushido Leather — curated timepieces, leather wallets, and handcrafted shoes. Cash on delivery across Pakistan.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --ink:#14110e;
+  --paper:#f7f4ee;
+  --card:#ffffff;
+  --gold:#b08d4f;
+  --gold-soft:#d6bd8d;
+  --smoke:#6f675c;
+  --line:#e4ddd1;
+  --danger:#a33b2e;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Jost',sans-serif;background:var(--paper);color:var(--ink);line-height:1.6}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:15px}
+
+header{position:sticky;top:0;z-index:50;background:rgba(20,17,14,.96);backdrop-filter:blur(8px);color:#f1ece2}
+.nav{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:16px 24px}
+.logo{font-family:'Cormorant Garamond',serif;font-size:26px;letter-spacing:4px;font-weight:600}
+.logo span{color:var(--gold-soft)}
+.logo small{display:block;font-family:'Jost';font-size:9px;letter-spacing:5px;color:#9a917f;font-weight:300}
+.nav-links{display:flex;gap:26px;align-items:center}
+.nav-links a{color:#d9d2c4;text-decoration:none;font-size:12px;letter-spacing:2.5px;text-transform:uppercase;transition:color .2s}
+.nav-links a:hover{color:var(--gold-soft)}
+.cart-btn{background:none;border:1px solid var(--gold);color:var(--gold-soft);padding:8px 18px;font-size:12px;letter-spacing:2px;text-transform:uppercase;transition:.2s}
+.cart-btn:hover{background:var(--gold);color:var(--ink)}
+.admin-link{font-size:11px;color:#7c7466!important}
+
+.hero{background:radial-gradient(1100px 500px at 75% 40%, #2b241c 0%, #14110e 60%);color:#f1ece2;padding:110px 24px 120px;position:relative;overflow:hidden}
+.hero::after{content:"XII";position:absolute;right:-40px;top:-60px;font-family:'Cormorant Garamond',serif;font-size:340px;color:rgba(176,141,79,.08);line-height:1}
+.hero-inner{max-width:1200px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:6px;text-transform:uppercase;color:var(--gold-soft);margin-bottom:18px}
+.hero h1{font-family:'Cormorant Garamond',serif;font-size:clamp(40px,6vw,74px);font-weight:500;line-height:1.05;max-width:640px}
+.hero h1 em{font-style:italic;color:var(--gold-soft)}
+.hero p{margin-top:22px;max-width:460px;color:#b6ad9c;font-weight:300}
+.hero .cta{display:inline-block;margin-top:36px;background:var(--gold);color:var(--ink);border:none;padding:15px 40px;font-size:13px;letter-spacing:3px;text-transform:uppercase;text-decoration:none;transition:.2s}
+.hero .cta:hover{background:var(--gold-soft)}
+
+.section{max-width:1200px;margin:0 auto;padding:80px 24px}
+.section-head{text-align:center;margin-bottom:48px}
+.section-head h2{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:500}
+.section-head h2 span{color:var(--gold)}
+.filters{display:flex;gap:10px;justify-content:center;margin-bottom:40px;flex-wrap:wrap}
+.chip{background:none;border:1px solid var(--line);padding:9px 24px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--smoke);transition:.2s}
+.chip.active,.chip:hover{border-color:var(--gold);color:var(--gold);background:#fbf8f1}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:28px}
+.product{background:var(--card);border:1px solid var(--line);transition:box-shadow .25s,transform .25s;display:flex;flex-direction:column}
+.product:hover{box-shadow:0 14px 34px rgba(20,17,14,.1);transform:translateY(-3px)}
+.product .img-wrap{aspect-ratio:1;overflow:hidden;background:#eee9df;display:flex;align-items:center;justify-content:center}
+.product .img-wrap img{width:100%;height:100%;object-fit:cover}
+.product .img-wrap .noimg{font-family:'Cormorant Garamond',serif;font-size:44px;color:#cfc6b5}
+.product .info{padding:18px 20px 22px;flex:1;display:flex;flex-direction:column;gap:6px}
+.product .cat{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold)}
+.product h3{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600}
+.product .price{font-size:16px;font-weight:500;margin-top:auto}
+.product .add{margin-top:12px;background:var(--ink);color:#f1ece2;border:none;padding:12px;font-size:12px;letter-spacing:2px;text-transform:uppercase;transition:.2s}
+.product .add:hover{background:var(--gold);color:var(--ink)}
+.empty-state{text-align:center;padding:70px 20px;color:var(--smoke)}
+.empty-state a{color:var(--gold)}
+.gal-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(20,17,14,.55);color:#f1ece2;border:none;width:32px;height:32px;font-size:20px;line-height:1;opacity:0;transition:.2s;z-index:2}
+.gal-prev{left:6px}.gal-next{right:6px}
+.img-wrap:hover .gal-arrow{opacity:1}
+@media(hover:none){.gal-arrow{opacity:.85}}
+.gal-dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:5px;z-index:2}
+.gal-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45)}
+.gal-dot.on{background:var(--gold-soft)}
+.loading{text-align:center;padding:60px;color:var(--smoke);letter-spacing:2px;text-transform:uppercase;font-size:12px}
+.setup-warning{max-width:700px;margin:30px auto;background:#fdf3e3;border:1px solid var(--gold);padding:24px;font-size:14px;display:none}
+.setup-warning code{background:#f3e8d2;padding:2px 6px}
+
+.overlay{position:fixed;inset:0;background:rgba(20,17,14,.5);opacity:0;pointer-events:none;transition:.25s;z-index:90}
+.overlay.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:-420px;width:min(420px,100%);height:100%;background:var(--paper);z-index:100;transition:right .3s;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgba(0,0,0,.2)}
+.drawer.open{right:0}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;padding:22px 24px;border-bottom:1px solid var(--line)}
+.drawer-head h3{font-family:'Cormorant Garamond',serif;font-size:24px}
+.drawer-body{flex:1;overflow:auto;padding:18px 24px}
+.cart-item{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.cart-item img{width:64px;height:64px;object-fit:cover;background:#eee9df}
+.cart-item .ci-info{flex:1}
+.cart-item .ci-info h4{font-size:15px;font-weight:500}
+.qty{display:flex;align-items:center;gap:10px;margin-top:6px}
+.qty button{width:24px;height:24px;border:1px solid var(--line);background:none}
+.remove{background:none;border:none;color:var(--danger);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.drawer-foot{padding:20px 24px;border-top:1px solid var(--line)}
+.total-row{display:flex;justify-content:space-between;font-size:17px;font-weight:500;margin-bottom:14px}
+.checkout-btn{width:100%;background:var(--gold);border:none;color:var(--ink);padding:15px;font-size:13px;letter-spacing:3px;text-transform:uppercase}
+.close-x{background:none;border:none;font-size:22px;color:var(--smoke)}
+
+.modal{position:fixed;inset:0;z-index:110;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 16px;background:rgba(20,17,14,.55)}
+.modal.open{display:flex}
+.modal-card{background:var(--paper);max-width:560px;width:100%;padding:34px;position:relative}
+.modal-card h3{font-family:'Cormorant Garamond',serif;font-size:28px;margin-bottom:6px}
+.modal-card .sub{color:var(--smoke);font-size:14px;margin-bottom:22px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--smoke);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:12px 14px;border:1px solid var(--line);background:#fff;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold)}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.btn{background:var(--ink);color:#f1ece2;border:none;padding:13px 28px;font-size:12px;letter-spacing:2px;text-transform:uppercase;transition:.2s}
+.btn:hover{background:var(--gold);color:var(--ink)}
+.btn.gold{background:var(--gold);color:var(--ink)}
+.btn.ghost{background:none;border:1px solid var(--line);color:var(--smoke)}
+.btn:disabled{opacity:.5;cursor:wait}
+.modal-close{position:absolute;top:16px;right:18px;background:none;border:none;font-size:22px;color:var(--smoke)}
+
+.admin-list{margin-top:26px;border-top:1px solid var(--line)}
+.admin-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.admin-item img{width:48px;height:48px;object-fit:cover;background:#eee9df}
+.admin-item .ai-info{flex:1;font-size:14px}
+.admin-item .ai-info small{color:var(--smoke)}
+.icon-btn{background:none;border:1px solid var(--line);padding:6px 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--smoke)}
+.icon-btn.danger{color:var(--danger);border-color:#e6cfc9}
+.preview{width:90px;height:90px;object-fit:cover;border:1px solid var(--line);margin-top:8px;display:none}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:#f1ece2;padding:13px 26px;font-size:13px;letter-spacing:1px;z-index:200;transition:.3s;opacity:0}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.tab-row{display:flex;gap:8px;margin-bottom:20px}
+.tab{flex:1;background:none;border:1px solid var(--line);padding:10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--smoke)}
+.tab.active{border-color:var(--gold);color:var(--gold);background:#fbf8f1}
+.order-card{border:1px solid var(--line);background:#fff;padding:16px;margin-bottom:12px;font-size:14px}
+.order-card .oc-head{display:flex;justify-content:space-between;margin-bottom:6px}
+.order-card .oc-head b{font-size:15px}
+.order-card .status{font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:3px 10px;border:1px solid var(--gold);color:var(--gold)}
+.order-card ul{list-style:none;color:var(--smoke);margin:6px 0}
+.logout-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;font-size:13px;color:var(--smoke)}
+
+.contact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:760px;margin:0 auto}
+.contact-card{background:var(--card);border:1px solid var(--line);padding:28px;text-align:center}
+.cc-label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:12px}
+.cc-main{color:var(--ink);text-decoration:none;font-size:16px;font-weight:500}
+.cc-main:hover{color:var(--gold)}
+.cc-num{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.wa-btn{background:#1f7a4d;color:#fff;text-decoration:none;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:6px 14px;transition:.2s}
+.wa-btn:hover{background:#25995f}
+
+footer{background:var(--ink);color:#9a917f;text-align:center;padding:44px 24px;font-size:12px;letter-spacing:2px}
+footer .logo{margin-bottom:8px;color:#f1ece2}
+footer a{color:var(--gold-soft);text-decoration:none}
+@media(max-width:640px){.nav-links a:not(.admin-link){display:none}.row-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="logo">BUSHIDO <span>LEATHER</span><small>WATCHES · WALLETS · SHOES</small></div>
+    <nav class="nav-links">
+      <a href="#shop">Shop</a>
+      <a href="#shop" data-filter="watch">Watches</a>
+      <a href="#shop" data-filter="wallet">Wallets</a>
+      <a href="#shop" data-filter="shoes">Shoes</a>
+      <a href="#policies">Delivery</a>
+      <a href="#contact">Contact</a>
+      <a href="#" class="admin-link" id="openAdmin">Manage Store</a>
+      <button class="cart-btn" id="openCart">Cart · <span id="cartCount">0</span></button>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">Crafted to be kept</div>
+    <h1>Time on your wrist.<br><em>Craft</em> at every step.</h1>
+    <p>Bushido Leather — a curated house of fine timepieces, leather wallets, and handcrafted shoes. Every piece photographed, priced, and chosen by us.</p>
+    <a href="#shop" class="cta">Browse the collection</a>
+  </div>
+</section>
+
+<div class="setup-warning" id="setupWarning">
+  <b>Setup needed:</b> Open this file in a text editor and replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> near the bottom (inside the CONFIG section) with the values from your Supabase dashboard → Settings → API.
+</div>
+
+<section class="section" id="shop">
+  <div class="section-head">
+    <div class="eyebrow" style="color:var(--gold)">The Collection</div>
+    <h2>Featured <span>Pieces</span></h2>
+  </div>
+  <div class="filters">
+    <button class="chip active" data-filter="all">All</button>
+    <button class="chip" data-filter="watch">Watches</button>
+    <button class="chip" data-filter="wallet">Wallets</button>
+    <button class="chip" data-filter="shoes">Shoes</button>
+  </div>
+  <div class="loading" id="loading">Loading collection…</div>
+  <div class="grid" id="productGrid"></div>
+  <div class="empty-state" id="emptyState" style="display:none">
+    No products yet. <a href="#" id="emptyAdminLink">Open Manage Store</a> to add your first watch, wallet, or pair of shoes.
+  </div>
+</section>
+
+<section class="section" id="policies" style="padding-top:0">
+  <div class="section-head">
+    <div class="eyebrow" style="color:var(--gold)">Good to know</div>
+    <h2>Delivery <span>&amp; Returns</span></h2>
+  </div>
+  <div class="contact-grid" style="max-width:1000px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+    <div class="contact-card" style="text-align:left">
+      <div class="cc-label">Delivery</div>
+      <p style="font-size:14px;color:var(--smoke)">We deliver all across Pakistan via courier. Orders are dispatched within 1–2 working days and typically arrive in 3–5 working days. Payment is <b>cash on delivery</b> — pay only when your order is in your hands.</p>
+    </div>
+    <div class="contact-card" style="text-align:left">
+      <div class="cc-label">Returns &amp; Exchange</div>
+      <p style="font-size:14px;color:var(--smoke)">Received a damaged or wrong item? Contact us on WhatsApp within <b>7 days</b> of delivery with a photo and we'll exchange it or refund you. Items must be unused and in original condition. Shoe size exchanges are welcome.</p>
+    </div>
+    <div class="contact-card" style="text-align:left">
+      <div class="cc-label">About Bushido Leather</div>
+      <p style="font-size:14px;color:var(--smoke)">Bushido Leather is a Pakistani house of fine timepieces, genuine leather wallets, and handcrafted shoes. Every piece is personally selected and photographed by us — what you see is exactly what you receive.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="contact" style="padding-top:0">
+  <div class="section-head">
+    <div class="eyebrow" style="color:var(--gold)">Get in touch</div>
+    <h2>Contact <span>Us</span></h2>
+    <p style="color:var(--smoke);margin-top:10px">Questions about a piece or your order? Call, WhatsApp, or email — we're happy to help.</p>
+  </div>
+  <div class="contact-grid">
+    <div class="contact-card">
+      <div class="cc-label">Email</div>
+      <a href="mailto:zahirkhan039756@gmail.com" class="cc-main">zahirkhan039756@gmail.com</a>
+    </div>
+    <div class="contact-card">
+      <div class="cc-label">Call or WhatsApp</div>
+      <div class="cc-num"><a href="tel:+923499308927" class="cc-main">0349 9308927</a> <a class="wa-btn" href="https://wa.me/923499308927" target="_blank" rel="noopener">WhatsApp</a></div>
+      <div class="cc-num"><a href="tel:+923499361259" class="cc-main">0349 9361259</a> <a class="wa-btn" href="https://wa.me/923499361259" target="_blank" rel="noopener">WhatsApp</a></div>
+      <div class="cc-num"><a href="tel:+923137790566" class="cc-main">0313 7790566</a> <a class="wa-btn" href="https://wa.me/923137790566" target="_blank" rel="noopener">WhatsApp</a></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="logo">BUSHIDO <span style="color:var(--gold-soft)">LEATHER</span></div>
+  <div style="margin-bottom:10px"><a href="mailto:zahirkhan039756@gmail.com">zahirkhan039756@gmail.com</a> · 0349 9308927 · 0349 9361259 · 0313 7790566</div>
+  © <span id="year"></span> Bushido Leather. All rights reserved.
+</footer>
+
+<!-- Cart drawer -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head"><h3>Your Cart</h3><button class="close-x" id="closeCart">✕</button></div>
+  <div class="drawer-body" id="cartBody"></div>
+  <div class="drawer-foot">
+    <div class="total-row"><span>Total</span><span id="cartTotal">Rs 0</span></div>
+    <button class="checkout-btn" id="openCheckout">Checkout</button>
+  </div>
+</aside>
+
+<!-- Checkout modal -->
+<div class="modal" id="checkoutModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close="checkoutModal">✕</button>
+    <h3>Checkout</h3>
+    <p class="sub">Cash on delivery — we'll confirm your order on WhatsApp or by phone.</p>
+    <div class="field"><label>Full name</label><input id="coName"></div>
+    <div class="row-2">
+      <div class="field"><label>Phone / WhatsApp</label><input id="coPhone" type="tel"></div>
+      <div class="field"><label>City</label><input id="coCity"></div>
+    </div>
+    <div class="field"><label>Delivery address</label><textarea id="coAddress" rows="2"></textarea></div>
+    <div class="total-row" style="margin:10px 0 18px"><span>Order total</span><span id="coTotal">Rs 0</span></div>
+    <button class="btn gold" id="placeOrder" style="width:100%">Place order</button>
+  </div>
+</div>
+
+<!-- Admin login modal -->
+<div class="modal" id="loginModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close="loginModal">✕</button>
+    <h3>Store Login</h3>
+    <p class="sub">Owner access only.</p>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+    <button class="btn gold" id="loginBtn" style="width:100%">Log in</button>
+  </div>
+</div>
+
+<!-- Admin modal -->
+<div class="modal" id="adminModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close="adminModal">✕</button>
+    <h3>Manage Store</h3>
+    <div class="logout-row"><span id="adminEmail"></span><button class="icon-btn" id="logoutBtn">Log out</button></div>
+    <div class="tab-row">
+      <button class="tab active" data-tab="productsTab">Products</button>
+      <button class="tab" data-tab="ordersTab">Orders</button>
+    </div>
+
+    <div id="productsTab">
+      <div class="field"><label>Product name</label><input id="pName" placeholder="e.g. Black Chronograph Steel"></div>
+      <div class="row-2">
+        <div class="field"><label>Price (Rs)</label><input id="pPrice" type="number" min="0" placeholder="4999"></div>
+        <div class="field"><label>Category</label>
+          <select id="pCat"><option value="watch">Watch</option><option value="wallet">Wallet</option><option value="shoes">Shoes</option></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Description (shown to customers)</label>
+        <textarea id="pDesc" rows="2" placeholder="e.g. Genuine cow leather, hand-stitched, 1 year warranty"></textarea>
+      </div>
+      <div class="row-2">
+        <div class="field"><label>Sizes (for shoes — comma separated)</label><input id="pSizes" placeholder="e.g. 40,41,42,43,44"></div>
+        <div class="field"><label>Availability</label>
+          <select id="pStock"><option value="true">In stock</option><option value="false">Sold out</option></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Product photos — select multiple (first photo = main photo)</label>
+        <input id="pImage" type="file" accept="image/*" multiple>
+        <div id="previewRow" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+      </div>
+      <button class="btn" id="saveProduct">Add product</button>
+      <button class="btn ghost" id="cancelEdit" style="display:none;margin-left:8px">Cancel edit</button>
+      <div class="admin-list" id="adminList"></div>
+    </div>
+
+    <div id="ordersTab" style="display:none">
+      <div id="ordersList"><p style="color:var(--smoke);font-size:14px">Loading orders…</p></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================
+   CONFIG — PASTE YOUR SUPABASE KEYS HERE
+   Dashboard → Settings → API
+===================================================== */
+const SUPABASE_URL = "https://ejfmenvmemdfgtkwmvuq.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_KLaVrTuJAa2e_LLfqII_fw_054BnzFp";
+/* Orders will also open a pre-filled WhatsApp message to this number: */
+const ORDER_WHATSAPP = "923499308927";
+/* ===================================================== */
+
+const CURRENCY = "Rs ";
+let db = null, products = [], cart = [], editingId = null, pendingFile = null, session = null;
+
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const configured = SUPABASE_URL.startsWith('https://') && SUPABASE_ANON_KEY.length > 40;
+if (!configured) {
+  document.getElementById('setupWarning').style.display = 'block';
+  document.getElementById('loading').style.display = 'none';
+} else {
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  init();
+}
+
+async function init(){
+  const { data } = await db.auth.getSession();
+  session = data.session;
+  db.auth.onAuthStateChange((_e, s) => { session = s; });
+  await loadProducts();
+}
+
+/* ---------- products ---------- */
+async function loadProducts(){
+  const { data, error } = await db.from('products').select('*').order('created_at', { ascending:false });
+  document.getElementById('loading').style.display = 'none';
+  if (error) { toast('Could not load products: ' + error.message); return; }
+  products = data || [];
+  render();
+}
+
+let activeFilter = 'all';
+function render(){
+  const grid = document.getElementById('productGrid');
+  const list = activeFilter==='all' ? products : products.filter(p=>p.cat===activeFilter);
+  grid.innerHTML = '';
+  document.getElementById('emptyState').style.display = products.length ? 'none':'block';
+  list.forEach(p=>{
+    const el = document.createElement('div');
+    el.className = 'product';
+    const sizes = (p.sizes||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const sizeSel = sizes.length ? `<select class="size-pick" data-id="${p.id}" style="width:100%;padding:9px;border:1px solid var(--line);margin-top:8px"><option value="">Select size</option>${sizes.map(s=>`<option>${esc(s)}</option>`).join('')}</select>` : '';
+    const soldOut = p.in_stock === false;
+    const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
+    const multi = imgs.length>1;
+    const gallery = imgs.length
+      ? `<img class="gal-img" data-pid="${p.id}" src="${imgs[0]}" alt="${esc(p.name)}" loading="lazy">
+         ${multi?`<button class="gal-arrow gal-prev" data-pid="${p.id}">‹</button>
+         <button class="gal-arrow gal-next" data-pid="${p.id}">›</button>
+         <div class="gal-dots">${imgs.map((_,x)=>`<span class="gal-dot${x===0?' on':''}" data-pid="${p.id}"></span>`).join('')}</div>`:''}`
+      : `<div class="noimg">${p.cat==='watch'?'XII':'B'}</div>`;
+    el.innerHTML = `
+      <div class="img-wrap" style="position:relative;${soldOut?'opacity:.5':''}">${gallery}</div>
+      <div class="info">
+        <div class="cat">${p.cat==='watch'?'Timepiece':p.cat==='wallet'?'Leather Wallet':'Leather Shoes'}</div>
+        <h3>${esc(p.name)}</h3>
+        ${p.description?`<p style="font-size:13px;color:var(--smoke)">${esc(p.description)}</p>`:''}
+        <div class="price">${CURRENCY}${Number(p.price).toLocaleString()}</div>
+        ${sizeSel}
+        <button class="add" data-id="${p.id}" ${soldOut?'disabled style="opacity:.5;cursor:not-allowed"':''}>${soldOut?'Sold out':'Add to cart'}</button>
+      </div>`;
+    el.dataset.imgs = JSON.stringify(imgs);
+    el.dataset.idx = "0";
+    grid.appendChild(el);
+  });
+  renderAdminList();
+  renderCart();
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');
+  activeFilter = c.dataset.filter;
+  render();
+}));
+document.querySelectorAll('a[data-filter]').forEach(a=>a.addEventListener('click',()=>{
+  const f = a.dataset.filter;
+  document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===f));
+  activeFilter=f; render();
+}));
+
+/* ---------- cart ---------- */
+document.getElementById('productGrid').addEventListener('click',e=>{
+  /* photo gallery arrows */
+  if(e.target.classList.contains('gal-arrow')){
+    const card = e.target.closest('.product');
+    const imgs = JSON.parse(card.dataset.imgs||'[]');
+    if(imgs.length<2) return;
+    let idx = parseInt(card.dataset.idx||'0');
+    idx = e.target.classList.contains('gal-next') ? (idx+1)%imgs.length : (idx-1+imgs.length)%imgs.length;
+    card.dataset.idx = idx;
+    card.querySelector('.gal-img').src = imgs[idx];
+    card.querySelectorAll('.gal-dot').forEach((d,x)=>d.classList.toggle('on',x===idx));
+    return;
+  }
+  if(!e.target.classList.contains('add') || e.target.disabled) return;
+  const p = products.find(x=>x.id===e.target.dataset.id);
+  const sizes = (p.sizes||'').split(',').map(s=>s.trim()).filter(Boolean);
+  let size = '';
+  if(sizes.length){
+    const sel = e.target.parentElement.querySelector('.size-pick');
+    size = sel ? sel.value : '';
+    if(!size){ toast('Please select a size first'); return; }
+  }
+  const item = cart.find(x=>x.id===p.id && x.size===size);
+  if(item) item.qty++; else cart.push({id:p.id,qty:1,size});
+  toast('Added to cart');
+  renderCart();
+});
+function cartTotal(){
+  return cart.reduce((s,i)=>{const p=products.find(x=>x.id===i.id);return s+(p?p.price*i.qty:0)},0);
+}
+function renderCart(){
+  cart = cart.filter(i=>products.find(p=>p.id===i.id));
+  const body = document.getElementById('cartBody');
+  body.innerHTML = cart.length? '' : '<p style="color:var(--smoke);padding:20px 0">Your cart is empty.</p>';
+  cart.forEach((i,idx)=>{
+    const p = products.find(x=>x.id===i.id);
+    const el = document.createElement('div');
+    el.className='cart-item';
+    el.innerHTML = `
+      ${p.img?`<img src="${p.img}">`:'<div style="width:64px;height:64px;background:#eee9df"></div>'}
+      <div class="ci-info">
+        <h4>${esc(p.name)}${i.size?` <span style="font-size:12px;color:var(--gold)">· Size ${esc(i.size)}</span>`:''}</h4>
+        <div style="font-size:13px;color:var(--smoke)">${CURRENCY}${Number(p.price).toLocaleString()}</div>
+        <div class="qty">
+          <button data-act="dec" data-idx="${idx}">−</button><span>${i.qty}</span><button data-act="inc" data-idx="${idx}">+</button>
+          <button class="remove" data-act="rm" data-idx="${idx}">Remove</button>
+        </div>
+      </div>`;
+    body.appendChild(el);
+  });
+  document.getElementById('cartCount').textContent = cart.reduce((s,i)=>s+i.qty,0);
+  document.getElementById('cartTotal').textContent = CURRENCY + cartTotal().toLocaleString();
+}
+document.getElementById('cartBody').addEventListener('click',e=>{
+  const idx = e.target.dataset.idx; if(idx===undefined) return;
+  const i = parseInt(idx);
+  if(e.target.dataset.act==='inc') cart[i].qty++;
+  if(e.target.dataset.act==='dec'){ cart[i].qty--; if(cart[i].qty<1) cart.splice(i,1); }
+  if(e.target.dataset.act==='rm') cart.splice(i,1);
+  renderCart();
+});
+
+const drawer=document.getElementById('drawer'), overlay=document.getElementById('overlay');
+document.getElementById('openCart').onclick=()=>{drawer.classList.add('open');overlay.classList.add('open')};
+document.getElementById('closeCart').onclick=closeDrawer;
+overlay.onclick=closeDrawer;
+function closeDrawer(){drawer.classList.remove('open');overlay.classList.remove('open')}
+
+/* ---------- checkout ---------- */
+document.getElementById('openCheckout').onclick=()=>{
+  if(!configured){toast('Store is not connected yet');return}
+  if(!cart.length){toast('Cart is empty');return}
+  closeDrawer();
+  document.getElementById('coTotal').textContent = CURRENCY + cartTotal().toLocaleString();
+  openModal('checkoutModal');
+};
+document.getElementById('placeOrder').onclick=async(e)=>{
+  const name=val('coName'), phone=val('coPhone'), city=val('coCity'), addr=val('coAddress');
+  if(!name||!phone||!addr){toast('Please fill name, phone, and address');return}
+  const items = cart.map(i=>{const p=products.find(x=>x.id===i.id);return{name:p.name + (i.size?` (Size ${i.size})`:''),price:p.price,qty:i.qty}});
+  const total = cartTotal();
+  e.target.disabled = true;
+  const { error } = await db.from('orders').insert({
+    customer_name:name, phone, city, address:addr, items, total
+  });
+  e.target.disabled = false;
+  if(error){ toast('Order failed: '+error.message); return; }
+
+  // Open a pre-filled WhatsApp message to the store owner
+  const lines = items.map(i=>`• ${i.name} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}`).join('\n');
+  const msg = `New order — Bushido Leather\n\n${lines}\n\nTotal: ${CURRENCY}${total.toLocaleString()}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
+  window.open(`https://wa.me/${ORDER_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  cart=[]; renderCart();
+  closeModal('checkoutModal');
+  ['coName','coPhone','coCity','coAddress'].forEach(id=>document.getElementById(id).value='');
+  toast('Order placed! We will contact you to confirm.');
+};
+function val(id){return document.getElementById(id).value.trim()}
+
+/* ---------- admin: login gate ---------- */
+document.getElementById('openAdmin').onclick=e=>{e.preventDefault();openAdminFlow()};
+document.getElementById('emptyAdminLink').onclick=e=>{e.preventDefault();openAdminFlow()};
+function openAdminFlow(){
+  if(!configured){toast('Add your Supabase keys first (see the yellow box)');return}
+  if(session){ openAdminPanel(); } else { openModal('loginModal'); }
+}
+document.getElementById('loginBtn').onclick=async(e)=>{
+  const email=val('loginEmail'), pass=document.getElementById('loginPass').value;
+  if(!email||!pass){toast('Enter email and password');return}
+  e.target.disabled=true;
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+  e.target.disabled=false;
+  if(error){ toast('Login failed: '+error.message); return; }
+  session = data.session;
+  closeModal('loginModal');
+  document.getElementById('loginPass').value='';
+  openAdminPanel();
+};
+document.getElementById('logoutBtn').onclick=async()=>{
+  await db.auth.signOut(); session=null;
+  closeModal('adminModal');
+  toast('Logged out');
+};
+function openAdminPanel(){
+  document.getElementById('adminEmail').textContent = session?.user?.email || '';
+  renderAdminList();
+  openModal('adminModal');
+}
+
+/* admin tabs */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('productsTab').style.display = t.dataset.tab==='productsTab'?'block':'none';
+  document.getElementById('ordersTab').style.display = t.dataset.tab==='ordersTab'?'block':'none';
+  if(t.dataset.tab==='ordersTab') loadOrders();
+});
+
+/* ---------- admin: product form ---------- */
+let pendingFiles = [];
+document.getElementById('pImage').addEventListener('change',e=>{
+  const files = Array.from(e.target.files||[]);
+  if(!files.length) return;
+  pendingFiles = [];
+  const row = document.getElementById('previewRow');
+  row.innerHTML = '';
+  files.forEach(f=>{
+    const img=new Image(), reader=new FileReader();
+    reader.onload=()=>{img.src=reader.result};
+    img.onload=()=>{
+      const max=900, scale=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=img.width*scale; c.height=img.height*scale;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>{ pendingFiles.push(b); },'image/jpeg',0.85);
+      const pv=document.createElement('img');
+      pv.src=c.toDataURL('image/jpeg',0.85);
+      pv.style.cssText='width:70px;height:70px;object-fit:cover;border:1px solid var(--line)';
+      row.appendChild(pv);
+    };
+    reader.readAsDataURL(f);
+  });
+});
+
+async function uploadImages(){
+  if(!pendingFiles.length) return null;
+  const urls = [];
+  for(let i=0;i<pendingFiles.length;i++){
+    const path = Date.now() + '-' + i + '.jpg';
+    const { error } = await db.storage.from('product-images').upload(path, pendingFiles[i], { contentType:'image/jpeg' });
+    if(error){ toast('Image upload failed: '+error.message); return null; }
+    const { data } = db.storage.from('product-images').getPublicUrl(path);
+    urls.push(data.publicUrl);
+  }
+  return urls;
+}
+
+document.getElementById('saveProduct').onclick=async(e)=>{
+  const name=val('pName'), price=parseFloat(document.getElementById('pPrice').value);
+  const cat=document.getElementById('pCat').value;
+  const description=val('pDesc'), sizes=val('pSizes');
+  const in_stock=document.getElementById('pStock').value==='true';
+  if(!name||isNaN(price)||price<0){toast('Enter a name and valid price');return}
+  e.target.disabled=true;
+  const urls = await uploadImages();
+  let error;
+  if(editingId){
+    const upd = { name, price, cat, description, sizes, in_stock };
+    if(urls){ upd.images = urls; upd.img = urls[0]; }
+    ({ error } = await db.from('products').update(upd).eq('id', editingId));
+  }else{
+    ({ error } = await db.from('products').insert({ name, price, cat, description, sizes, in_stock, images: urls || [], img: urls ? urls[0] : '' }));
+  }
+  e.target.disabled=false;
+  if(error){ toast('Save failed: '+error.message); return; }
+  toast(editingId ? 'Product updated' : 'Product added');
+  resetForm();
+  await loadProducts();
+};
+document.getElementById('cancelEdit').onclick=resetForm;
+function resetForm(){
+  editingId=null; pendingFiles=[];
+  ['pName','pPrice','pDesc','pSizes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pStock').value='true';
+  document.getElementById('pImage').value='';
+  document.getElementById('previewRow').innerHTML='';
+  document.getElementById('saveProduct').textContent='Add product';
+  document.getElementById('cancelEdit').style.display='none';
+}
+function renderAdminList(){
+  const list=document.getElementById('adminList');
+  list.innerHTML = products.length? '' : '<p style="color:var(--smoke);padding:16px 0;font-size:14px">No products yet.</p>';
+  products.forEach(p=>{
+    const el=document.createElement('div');
+    el.className='admin-item';
+    el.innerHTML=`
+      ${p.img?`<img src="${p.img}">`:'<div style="width:48px;height:48px;background:#eee9df"></div>'}
+      <div class="ai-info">${esc(p.name)}<br><small>${p.cat} · ${CURRENCY}${Number(p.price).toLocaleString()}</small></div>
+      <button class="icon-btn" data-edit="${p.id}">Edit</button>
+      <button class="icon-btn danger" data-del="${p.id}">Delete</button>`;
+    list.appendChild(el);
+  });
+}
+document.getElementById('adminList').addEventListener('click',async e=>{
+  const editId=e.target.dataset.edit, delId=e.target.dataset.del;
+  if(editId){
+    const p=products.find(x=>x.id===editId);
+    editingId=editId;
+    document.getElementById('pName').value=p.name;
+    document.getElementById('pPrice').value=p.price;
+    document.getElementById('pCat').value=p.cat;
+    document.getElementById('pDesc').value=p.description||'';
+    document.getElementById('pSizes').value=p.sizes||'';
+    document.getElementById('pStock').value=(p.in_stock===false)?'false':'true';
+    const row=document.getElementById('previewRow'); row.innerHTML='';
+    const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
+    imgs.forEach(u=>{const pv=document.createElement('img');pv.src=u;pv.style.cssText='width:70px;height:70px;object-fit:cover;border:1px solid var(--line)';row.appendChild(pv)});
+    if(imgs.length){const note=document.createElement('div');note.style.cssText='font-size:11px;color:var(--smoke);width:100%';note.textContent='Current photos — selecting new files will replace all of them';row.appendChild(note)}
+    document.getElementById('saveProduct').textContent='Save changes';
+    document.getElementById('cancelEdit').style.display='inline-block';
+  }
+  if(delId){
+    if(!confirm('Delete this product? This cannot be undone.')) return;
+    const p = products.find(x=>x.id===delId);
+    /* clean up photos from storage */
+    const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
+    const paths = imgs.map(u=>{try{return decodeURIComponent(u.split('/product-images/')[1].split('?')[0])}catch(_){return null}}).filter(Boolean);
+    if(paths.length) await db.storage.from('product-images').remove(paths);
+    const { error } = await db.from('products').delete().eq('id', delId);
+    if(error){ toast('Delete failed: '+error.message); return; }
+    toast('Product deleted');
+    await loadProducts();
+  }
+});
+
+/* ---------- admin: orders ---------- */
+async function loadOrders(){
+  const wrap = document.getElementById('ordersList');
+  const { data, error } = await db.from('orders').select('*').order('created_at',{ascending:false}).limit(50);
+  if(error){ wrap.innerHTML = '<p style="color:var(--danger)">Could not load orders: '+esc(error.message)+'</p>'; return; }
+  if(!data.length){ wrap.innerHTML = '<p style="color:var(--smoke);font-size:14px">No orders yet.</p>'; return; }
+  wrap.innerHTML = '';
+  data.forEach(o=>{
+    const d = new Date(o.created_at).toLocaleString();
+    const items = (o.items||[]).map(i=>`<li>${esc(i.name)} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}</li>`).join('');
+    const el=document.createElement('div');
+    el.className='order-card';
+    el.innerHTML=`
+      <div class="oc-head"><b>${esc(o.customer_name)}</b><span class="status">${esc(o.status||'new')}</span></div>
+      <div style="color:var(--smoke);font-size:12px">${d}</div>
+      <ul>${items}</ul>
+      <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b></div>
+      <div style="margin-top:6px;font-size:13px">📞 ${esc(o.phone)} · ${esc(o.city||'')}<br>📍 ${esc(o.address)}</div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <a class="icon-btn" style="text-decoration:none" href="https://wa.me/92${esc(String(o.phone).replace(/\D/g,'').replace(/^0/,''))}" target="_blank" rel="noopener">WhatsApp customer</a>
+        ${o.status!=='done'?`<button class="icon-btn" data-done="${o.id}">Mark done</button>`:''}
+      </div>`;
+    wrap.appendChild(el);
+  });
+}
+document.getElementById('ordersList').addEventListener('click',async e=>{
+  const id = e.target.dataset.done; if(!id) return;
+  const { error } = await db.from('orders').update({status:'done'}).eq('id',id);
+  if(error){ toast('Update failed: '+error.message); return; }
+  loadOrders();
+});
+
+/* ---------- modals & toast ---------- */
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>
