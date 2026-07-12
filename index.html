@@ -543,7 +543,7 @@ document.getElementById('openCheckout').onclick=()=>{
 document.getElementById('placeOrder').onclick=async(e)=>{
   const name=val('coName'), phone=val('coPhone'), city=val('coCity'), addr=val('coAddress');
   if(!name||!phone||!addr){toast('Please fill name, phone, and address');return}
-  const items = cart.map(i=>{const p=products.find(x=>x.id===i.id);return{name:p.name + (i.size?` (Size ${i.size})`:''),price:p.price,qty:i.qty}});
+  const items = cart.map(i=>{const p=products.find(x=>x.id===i.id);return{pid:p.id,name:p.name + (i.size?` (Size ${i.size})`:''),price:p.price,qty:i.qty}});
   const total = cartTotal();
   const confirmNum = document.getElementById('coConfirm').value;
   const confirmLabel = document.getElementById('coConfirm').selectedOptions[0].textContent;
@@ -563,6 +563,7 @@ document.getElementById('placeOrder').onclick=async(e)=>{
   closeModal('checkoutModal');
   ['coName','coPhone','coCity','coAddress'].forEach(id=>document.getElementById(id).value='');
   toast('Order placed! We will contact you to confirm.');
+  loadProducts(); /* refresh stock counts */
 };
 function val(id){return document.getElementById(id).value.trim()}
 
@@ -736,11 +737,17 @@ async function loadOrders(){
   const wrap = document.getElementById('ordersList');
   const { data, error } = await db.from('orders').select('*').order('created_at',{ascending:false}).limit(50);
   if(error){ wrap.innerHTML = '<p style="color:var(--danger)">Could not load orders: '+esc(error.message)+'</p>'; return; }
-  if(!data.length){ wrap.innerHTML = '<p style="color:var(--smoke);font-size:14px">No orders yet.</p>'; return; }
+  /* cancelled orders disappear from this list 5 minutes after cancellation */
+  const visible = (data||[]).filter(o=>{
+    if((o.status||'new')!=='cancelled') return true;
+    if(!o.cancelled_at) return true;
+    return (Date.now() - new Date(o.cancelled_at).getTime()) < 5*60*1000;
+  });
+  if(!visible.length){ wrap.innerHTML = '<p style="color:var(--smoke);font-size:14px">No orders yet.</p>'; return; }
   wrap.innerHTML = '';
   const FLOW = ['new','confirmed','packing','shipped','delivered'];
   const NEXT_LABEL = {new:'Confirm order',confirmed:'Start packing',packing:'Mark shipped',shipped:'Mark delivered'};
-  data.forEach(o=>{
+  visible.forEach(o=>{
     const d = new Date(o.created_at).toLocaleString();
     const items = (o.items||[]).map(i=>`<li>${esc(i.name)} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}</li>`).join('');
     const st = o.status || 'new';
@@ -766,11 +773,14 @@ async function loadOrders(){
 document.getElementById('ordersList').addEventListener('click',async e=>{
   const status = e.target.dataset.setstatus, id = e.target.dataset.oid;
   if(!status || !id) return;
-  if(status==='cancelled' && !confirm('Cancel this order? Remember to restore the stock quantity of its items.')) return;
-  const { error } = await db.from('orders').update({status}).eq('id',id);
+  if(status==='cancelled' && !confirm('Cancel this order? Stock will be restored automatically.')) return;
+  const upd = { status };
+  if(status==='cancelled') upd.cancelled_at = new Date().toISOString();
+  const { error } = await db.from('orders').update(upd).eq('id',id);
   if(error){ toast('Update failed: '+error.message); return; }
   toast('Order marked: '+status);
   loadOrders();
+  loadProducts(); /* refresh stock counts */
 });
 
 /* ---------- modals & toast ---------- */
