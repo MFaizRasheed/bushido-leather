@@ -290,8 +290,10 @@ footer a{color:var(--gold-soft);text-decoration:none}
     <div class="field"><label>Payment method</label>
       <select id="coPayment">
         <option value="cod">Cash on Delivery (pay at your door)</option>
-        <option value="easypaisa">Easypaisa (pay now)</option>
+        <option value="easypaisa">Easypaisa — 0349 9361259 (pay now)</option>
+        <option value="easypaisa2">Easypaisa — 0349 9308927 (pay now)</option>
         <option value="bank">Bank Transfer — Meezan Bank (pay now)</option>
+        <option value="bank2">Bank Transfer — JS Bank (pay now)</option>
       </select>
     </div>
     <div id="payDetails" style="display:none;background:#fbf6ea;border:1px solid var(--gold);padding:14px;font-size:14px;margin-bottom:16px">
@@ -300,6 +302,19 @@ footer a{color:var(--gold-soft);text-decoration:none}
         Number: <b>0349 9361259</b><br>
         Account name: <b>Muhammad Faiz Rasheed</b><br>
         <span style="color:var(--smoke);font-size:13px">Send the order total to this Easypaisa account, take a screenshot of the payment, and send it to us on WhatsApp after placing your order. Your order ships once payment is verified.</span>
+      </div>
+      <div id="payEasypaisa2" style="display:none">
+        <b>Easypaisa payment details:</b><br>
+        Number: <b>0349 9308927</b><br>
+        Account name: <b>Muhammad Zahir</b><br>
+        <span style="color:var(--smoke);font-size:13px">Send the order total to this Easypaisa account, take a screenshot of the payment, and send it to us on WhatsApp after placing your order. Your order ships once payment is verified.</span>
+      </div>
+      <div id="payBank2" style="display:none">
+        <b>Bank transfer details:</b><br>
+        Bank: <b>JS Bank</b><br>
+        Account number: <b>2603501</b><br>
+        Account name: <b>Muhammad Zahir</b><br>
+        <span style="color:var(--smoke);font-size:13px">Transfer the order total to this account, take a screenshot of the payment, and send it to us on WhatsApp after placing your order. Your order ships once payment is verified.</span>
       </div>
       <div id="payBank" style="display:none">
         <b>Bank transfer details:</b><br>
@@ -608,7 +623,9 @@ document.getElementById('coPayment').addEventListener('change',e=>{
   const v = e.target.value;
   document.getElementById('payDetails').style.display = v==='cod' ? 'none' : 'block';
   document.getElementById('payEasypaisa').style.display = v==='easypaisa' ? 'block' : 'none';
+  document.getElementById('payEasypaisa2').style.display = v==='easypaisa2' ? 'block' : 'none';
   document.getElementById('payBank').style.display = v==='bank' ? 'block' : 'none';
+  document.getElementById('payBank2').style.display = v==='bank2' ? 'block' : 'none';
 });
 document.getElementById('placeOrder').onclick=async(e)=>{
   const name=val('coName'), phone=val('coPhone'), city=val('coCity'), addr=val('coAddress');
@@ -620,7 +637,13 @@ document.getElementById('placeOrder').onclick=async(e)=>{
   const confirmNum = document.getElementById('coConfirm').value;
   const confirmLabel = document.getElementById('coConfirm').selectedOptions[0].textContent;
   const payMethod = document.getElementById('coPayment').value;
-  const payLabel = {cod:'Cash on Delivery', easypaisa:'Easypaisa (0349 9361259 — Muhammad Faiz Rasheed)', bank:'Bank Transfer (Meezan 26010108119634 — Muhammad Faiz Rasheed)'}[payMethod];
+  const payLabel = {
+    cod:'Cash on Delivery',
+    easypaisa:'Easypaisa (0349 9361259 — Muhammad Faiz Rasheed)',
+    easypaisa2:'Easypaisa (0349 9308927 — Muhammad Zahir)',
+    bank:'Bank Transfer (Meezan 26010108119634 — Muhammad Faiz Rasheed)',
+    bank2:'Bank Transfer (JS Bank 2603501 — Muhammad Zahir)'
+  }[payMethod];
   e.target.disabled = true;
   const { error } = await db.from('orders').insert({
     customer_name:name, phone, city, address: addr + '\n[Confirm via: ' + confirmLabel + ']', items, total, payment_method: payMethod
@@ -835,7 +858,7 @@ async function loadOrders(){
       <div class="oc-head"><b>${esc(o.customer_name)}</b><span class="status" style="border-color:${stColor};color:${stColor}">${esc(st)}</span></div>
       <div style="color:var(--smoke);font-size:12px">${d}</div>
       <ul>${items}</ul>
-      <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b> · <span style="font-size:12px;color:${o.payment_method==='cod'||!o.payment_method?'var(--smoke)':'#1f7a4d'}">${o.payment_method==='easypaisa'?'💳 Easypaisa — verify payment!':o.payment_method==='bank'?'🏦 Bank transfer — verify payment!':'💵 Cash on Delivery'}</span></div>
+      <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b> · <span style="font-size:12px;color:${o.payment_method==='cod'||!o.payment_method?'var(--smoke)':'#1f7a4d'}">${(o.payment_method||'cod').startsWith('easypaisa')?'💳 Easypaisa — verify payment!':(o.payment_method||'').startsWith('bank')?'🏦 Bank transfer — verify payment!':'💵 Cash on Delivery'}</span></div>
       <div style="margin-top:6px;font-size:13px">📞 ${esc(o.phone)} · ${esc(o.city||'')}<br>📍 ${esc(o.address)}</div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
         <a class="icon-btn" style="text-decoration:none" href="https://wa.me/92${esc(String(o.phone).replace(/\D/g,'').replace(/^0/,''))}" target="_blank" rel="noopener">WhatsApp customer</a>
