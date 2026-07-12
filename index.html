@@ -283,7 +283,12 @@ footer a{color:var(--gold-soft);text-decoration:none}
     <h3>Store Login</h3>
     <p class="sub">Owner access only.</p>
     <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
-    <div class="field"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+    <div class="field"><label>Password</label>
+      <div style="position:relative">
+        <input id="loginPass" type="password" autocomplete="current-password" style="padding-right:46px">
+        <button type="button" id="togglePass" aria-label="Show password" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:18px;color:var(--smoke);padding:4px">👁</button>
+      </div>
+    </div>
     <button class="btn gold" id="loginBtn" style="width:100%">Log in</button>
   </div>
 </div>
@@ -535,6 +540,14 @@ function openAdminFlow(){
   if(!configured){toast('Add your Supabase keys first (see the yellow box)');return}
   if(session){ openAdminPanel(); } else { openModal('loginModal'); }
 }
+document.getElementById('togglePass').onclick=()=>{
+  const inp=document.getElementById('loginPass');
+  const show = inp.type==='password';
+  inp.type = show ? 'text' : 'password';
+  const btn=document.getElementById('togglePass');
+  btn.textContent = show ? '🙈' : '👁';
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+};
 document.getElementById('loginBtn').onclick=async(e)=>{
   const email=val('loginEmail'), pass=document.getElementById('loginPass').value;
   if(!email||!pass){toast('Enter email and password');return}
