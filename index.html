@@ -221,7 +221,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
   <div class="contact-grid" style="max-width:1000px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
     <div class="contact-card" style="text-align:left">
       <div class="cc-label">Delivery</div>
-      <p style="font-size:14px;color:var(--smoke)">We deliver all across Pakistan via courier. Orders are dispatched within 1–2 working days and typically arrive in 3–5 working days. Payment is <b>cash on delivery</b> — pay only when your order is in your hands.</p>
+      <p style="font-size:14px;color:var(--smoke)">We deliver all across Pakistan via courier. Standard delivery is <b>Rs 250</b> — orders above <b>Rs 3,000</b> get <b>50% off delivery</b>, and orders above <b>Rs 5,000</b> ship <b>FREE</b>. Orders are dispatched within 1–2 working days and typically arrive in 3–6 working days. Payment is <b>cash on delivery</b> — pay only when your order is in your hands.</p>
     </div>
     <div class="contact-card" style="text-align:left">
       <div class="cc-label">Cancellation &amp; Returns</div>
@@ -267,6 +267,9 @@ footer a{color:var(--gold-soft);text-decoration:none}
   <div class="drawer-head"><h3>Your Cart</h3><button class="close-x" id="closeCart">✕</button></div>
   <div class="drawer-body" id="cartBody"></div>
   <div class="drawer-foot">
+    <div class="total-row" style="font-size:14px;font-weight:400"><span>Subtotal</span><span id="cartSubtotal">Rs 0</span></div>
+    <div class="total-row" style="font-size:14px;font-weight:400"><span>Delivery</span><span id="cartDelivery">Rs 0</span></div>
+    <div id="deliveryHint" style="font-size:12px;color:var(--gold);margin-bottom:10px"></div>
     <div class="total-row"><span>Total</span><span id="cartTotal">Rs 0</span></div>
     <button class="checkout-btn" id="openCheckout">Checkout</button>
   </div>
@@ -291,7 +294,9 @@ footer a{color:var(--gold-soft);text-decoration:none}
         <option value="923137790566">WhatsApp — 0313 7790566</option>
       </select>
     </div>
-    <div class="total-row" style="margin:10px 0 18px"><span>Order total</span><span id="coTotal">Rs 0</span></div>
+    <div class="total-row" style="margin:10px 0 0;font-size:14px;font-weight:400"><span>Subtotal</span><span id="coSubtotal">Rs 0</span></div>
+    <div class="total-row" style="margin:0;font-size:14px;font-weight:400"><span>Delivery</span><span id="coDelivery">Rs 0</span></div>
+    <div class="total-row" style="margin:6px 0 18px"><span>Order total</span><span id="coTotal">Rs 0</span></div>
     <button class="btn gold" id="placeOrder" style="width:100%">Place order</button>
   </div>
 </div>
@@ -369,6 +374,16 @@ const SUPABASE_ANON_KEY = "sb_publishable_KLaVrTuJAa2e_LLfqII_fw_054BnzFp";
 const ORDER_WHATSAPP = "923499308927";
 /* Maximum quantity of a single item one customer can add to cart: */
 const MAX_PER_ITEM = 5;
+/* ---- Delivery charges ---- */
+const DELIVERY_FEE = 250;            /* standard delivery charge in Rs */
+const HALF_DELIVERY_OVER = 3000;     /* orders above this get 50% off delivery */
+const FREE_DELIVERY_OVER = 5000;     /* orders above this get FREE delivery */
+function deliveryFor(subtotal){
+  if(subtotal <= 0) return 0;
+  if(subtotal >= FREE_DELIVERY_OVER) return 0;
+  if(subtotal >= HALF_DELIVERY_OVER) return Math.round(DELIVERY_FEE/2);
+  return DELIVERY_FEE;
+}
 /* Numbers the customer can choose for order confirmation: */
 const CONFIRM_NUMBERS = [
   { label: "0349 9308927", wa: "923499308927" },
@@ -436,6 +451,7 @@ function render(){
         <h3>${esc(p.name)}</h3>
         ${p.description?`<p style="font-size:13px;color:var(--smoke)">${esc(p.description)}</p>`:''}
         <div class="price">${CURRENCY}${Number(p.price).toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--smoke)">🚚 Delivery ${CURRENCY}${DELIVERY_FEE} · <span style="color:var(--gold)">FREE over ${CURRENCY}${FREE_DELIVERY_OVER.toLocaleString()}</span></div>
         ${soldOut?'<div style="font-size:12px;color:var(--danger);letter-spacing:1px">OUT OF STOCK</div>':lowStock?`<div style="font-size:12px;color:var(--danger)">Only ${qty} left in stock!</div>`:qty!==null?`<div style="font-size:12px;color:var(--smoke)">${qty} available</div>`:''}
         ${sizeSel}
         <button class="add" data-id="${p.id}" ${soldOut?'disabled style="opacity:.5;cursor:not-allowed"':''}>${soldOut?'Sold out':'Add to cart'}</button>
@@ -519,7 +535,17 @@ function renderCart(){
     body.appendChild(el);
   });
   document.getElementById('cartCount').textContent = cart.reduce((s,i)=>s+i.qty,0);
-  document.getElementById('cartTotal').textContent = CURRENCY + cartTotal().toLocaleString();
+  const sub = cartTotal();
+  const del = deliveryFor(sub);
+  document.getElementById('cartSubtotal').textContent = CURRENCY + sub.toLocaleString();
+  document.getElementById('cartDelivery').textContent = del===0 && sub>0 ? 'FREE 🎉' : CURRENCY + del.toLocaleString();
+  const hint = document.getElementById('deliveryHint');
+  if(sub>0 && sub < HALF_DELIVERY_OVER){
+    hint.textContent = `Add ${CURRENCY}${(HALF_DELIVERY_OVER-sub).toLocaleString()} more for 50% off delivery!`;
+  } else if(sub >= HALF_DELIVERY_OVER && sub < FREE_DELIVERY_OVER){
+    hint.textContent = `Add ${CURRENCY}${(FREE_DELIVERY_OVER-sub).toLocaleString()} more for FREE delivery!`;
+  } else { hint.textContent = ''; }
+  document.getElementById('cartTotal').textContent = CURRENCY + (sub + del).toLocaleString();
 }
 document.getElementById('cartBody').addEventListener('click',e=>{
   const idx = e.target.dataset.idx; if(idx===undefined) return;
@@ -550,14 +576,19 @@ document.getElementById('openCheckout').onclick=()=>{
   if(!configured){toast('Store is not connected yet');return}
   if(!cart.length){toast('Cart is empty');return}
   closeDrawer();
-  document.getElementById('coTotal').textContent = CURRENCY + cartTotal().toLocaleString();
+  const sub = cartTotal(), del = deliveryFor(sub);
+  document.getElementById('coSubtotal').textContent = CURRENCY + sub.toLocaleString();
+  document.getElementById('coDelivery').textContent = del===0 ? 'FREE 🎉' : CURRENCY + del.toLocaleString();
+  document.getElementById('coTotal').textContent = CURRENCY + (sub+del).toLocaleString();
   openModal('checkoutModal');
 };
 document.getElementById('placeOrder').onclick=async(e)=>{
   const name=val('coName'), phone=val('coPhone'), city=val('coCity'), addr=val('coAddress');
   if(!name||!phone||!addr){toast('Please fill name, phone, and address');return}
   const items = cart.map(i=>{const p=products.find(x=>x.id===i.id);return{pid:p.id,name:p.name + (i.size?` (Size ${i.size})`:''),price:p.price,qty:i.qty}});
-  const total = cartTotal();
+  const subtotal = cartTotal();
+  const delivery = deliveryFor(subtotal);
+  const total = subtotal + delivery;
   const confirmNum = document.getElementById('coConfirm').value;
   const confirmLabel = document.getElementById('coConfirm').selectedOptions[0].textContent;
   e.target.disabled = true;
@@ -569,7 +600,7 @@ document.getElementById('placeOrder').onclick=async(e)=>{
 
   // Open a pre-filled WhatsApp message to the number the customer chose
   const lines = items.map(i=>`• ${i.name} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}`).join('\n');
-  const msg = `New order — Bushido Leather\n\n${lines}\n\nTotal: ${CURRENCY}${total.toLocaleString()}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
+  const msg = `New order — Bushido Leather\n\n${lines}\n\nSubtotal: ${CURRENCY}${subtotal.toLocaleString()}\nDelivery: ${delivery===0?'FREE':CURRENCY+delivery.toLocaleString()}\nTotal: ${CURRENCY}${total.toLocaleString()}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
   window.open(`https://wa.me/${confirmNum}?text=${encodeURIComponent(msg)}`, '_blank');
 
   cart=[]; renderCart();
