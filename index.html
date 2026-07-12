@@ -211,8 +211,8 @@ footer a{color:var(--gold-soft);text-decoration:none}
       <p style="font-size:14px;color:var(--smoke)">We deliver all across Pakistan via courier. Orders are dispatched within 1–2 working days and typically arrive in 3–5 working days. Payment is <b>cash on delivery</b> — pay only when your order is in your hands.</p>
     </div>
     <div class="contact-card" style="text-align:left">
-      <div class="cc-label">Returns &amp; Exchange</div>
-      <p style="font-size:14px;color:var(--smoke)">Received a damaged or wrong item? Contact us on WhatsApp within <b>7 days</b> of delivery with a photo and we'll exchange it or refund you. Items must be unused and in original condition. Shoe size exchanges are welcome.</p>
+      <div class="cc-label">Cancellation &amp; Returns</div>
+      <p style="font-size:14px;color:var(--smoke)"><b>Cancel free of charge any time before dispatch</b> — just message us on the same WhatsApp number where you placed your order. Received a damaged or wrong item? Contact us within <b>7 days</b> of delivery with a photo and we'll exchange it or refund you. Items must be unused and in original condition. Shoe size exchanges are welcome.</p>
     </div>
     <div class="contact-card" style="text-align:left">
       <div class="cc-label">About Bushido Leather</div>
@@ -738,28 +738,38 @@ async function loadOrders(){
   if(error){ wrap.innerHTML = '<p style="color:var(--danger)">Could not load orders: '+esc(error.message)+'</p>'; return; }
   if(!data.length){ wrap.innerHTML = '<p style="color:var(--smoke);font-size:14px">No orders yet.</p>'; return; }
   wrap.innerHTML = '';
+  const FLOW = ['new','confirmed','packing','shipped','delivered'];
+  const NEXT_LABEL = {new:'Confirm order',confirmed:'Start packing',packing:'Mark shipped',shipped:'Mark delivered'};
   data.forEach(o=>{
     const d = new Date(o.created_at).toLocaleString();
     const items = (o.items||[]).map(i=>`<li>${esc(i.name)} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}</li>`).join('');
+    const st = o.status || 'new';
+    const stColor = st==='cancelled' ? 'var(--danger)' : st==='delivered' ? '#1f7a4d' : 'var(--gold)';
+    const idx = FLOW.indexOf(st);
+    const nextStatus = (idx>-1 && idx<FLOW.length-1) ? FLOW[idx+1] : null;
     const el=document.createElement('div');
     el.className='order-card';
     el.innerHTML=`
-      <div class="oc-head"><b>${esc(o.customer_name)}</b><span class="status">${esc(o.status||'new')}</span></div>
+      <div class="oc-head"><b>${esc(o.customer_name)}</b><span class="status" style="border-color:${stColor};color:${stColor}">${esc(st)}</span></div>
       <div style="color:var(--smoke);font-size:12px">${d}</div>
       <ul>${items}</ul>
       <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b></div>
       <div style="margin-top:6px;font-size:13px">📞 ${esc(o.phone)} · ${esc(o.city||'')}<br>📍 ${esc(o.address)}</div>
-      <div style="margin-top:10px;display:flex;gap:8px">
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
         <a class="icon-btn" style="text-decoration:none" href="https://wa.me/92${esc(String(o.phone).replace(/\D/g,'').replace(/^0/,''))}" target="_blank" rel="noopener">WhatsApp customer</a>
-        ${o.status!=='done'?`<button class="icon-btn" data-done="${o.id}">Mark done</button>`:''}
+        ${nextStatus?`<button class="icon-btn" data-setstatus="${nextStatus}" data-oid="${o.id}">${NEXT_LABEL[st]}</button>`:''}
+        ${(st!=='cancelled'&&st!=='delivered')?`<button class="icon-btn danger" data-setstatus="cancelled" data-oid="${o.id}">Cancel order</button>`:''}
       </div>`;
     wrap.appendChild(el);
   });
 }
 document.getElementById('ordersList').addEventListener('click',async e=>{
-  const id = e.target.dataset.done; if(!id) return;
-  const { error } = await db.from('orders').update({status:'done'}).eq('id',id);
+  const status = e.target.dataset.setstatus, id = e.target.dataset.oid;
+  if(!status || !id) return;
+  if(status==='cancelled' && !confirm('Cancel this order? Remember to restore the stock quantity of its items.')) return;
+  const { error } = await db.from('orders').update({status}).eq('id',id);
   if(error){ toast('Update failed: '+error.message); return; }
+  toast('Order marked: '+status);
   loadOrders();
 });
 
