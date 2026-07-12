@@ -1,5 +1,5 @@
 /* Bushido Leather service worker — caches the app shell for instant loads */
-const CACHE = 'bushido-v1';
+const CACHE = 'bushido-v2';
 const SHELL = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
