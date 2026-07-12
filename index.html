@@ -271,6 +271,13 @@ footer a{color:var(--gold-soft);text-decoration:none}
       <div class="field"><label>City</label><input id="coCity"></div>
     </div>
     <div class="field"><label>Delivery address</label><textarea id="coAddress" rows="2"></textarea></div>
+    <div class="field"><label>Confirm my order through this number</label>
+      <select id="coConfirm">
+        <option value="923499308927">WhatsApp — 0349 9308927</option>
+        <option value="923499361259">WhatsApp — 0349 9361259</option>
+        <option value="923137790566">WhatsApp — 0313 7790566</option>
+      </select>
+    </div>
     <div class="total-row" style="margin:10px 0 18px"><span>Order total</span><span id="coTotal">Rs 0</span></div>
     <button class="btn gold" id="placeOrder" style="width:100%">Place order</button>
   </div>
@@ -318,9 +325,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
       </div>
       <div class="row-2">
         <div class="field"><label>Sizes (for shoes — comma separated)</label><input id="pSizes" placeholder="e.g. 40,41,42,43,44"></div>
-        <div class="field"><label>Availability</label>
-          <select id="pStock"><option value="true">In stock</option><option value="false">Sold out</option></select>
-        </div>
+        <div class="field"><label>Stock quantity (how many you have)</label><input id="pQty" type="number" min="0" placeholder="e.g. 10"></div>
       </div>
       <div class="field">
         <label>Product photos — select multiple (first photo = main photo)</label>
@@ -349,6 +354,14 @@ const SUPABASE_URL = "https://ejfmenvmemdfgtkwmvuq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_KLaVrTuJAa2e_LLfqII_fw_054BnzFp";
 /* Orders will also open a pre-filled WhatsApp message to this number: */
 const ORDER_WHATSAPP = "923499308927";
+/* Maximum quantity of a single item one customer can add to cart: */
+const MAX_PER_ITEM = 5;
+/* Numbers the customer can choose for order confirmation: */
+const CONFIRM_NUMBERS = [
+  { label: "0349 9308927", wa: "923499308927" },
+  { label: "0349 9361259", wa: "923499361259" },
+  { label: "0313 7790566", wa: "923137790566" }
+];
 /* ===================================================== */
 
 const CURRENCY = "Rs ";
@@ -392,7 +405,9 @@ function render(){
     el.className = 'product';
     const sizes = (p.sizes||'').split(',').map(s=>s.trim()).filter(Boolean);
     const sizeSel = sizes.length ? `<select class="size-pick" data-id="${p.id}" style="width:100%;padding:9px;border:1px solid var(--line);margin-top:8px"><option value="">Select size</option>${sizes.map(s=>`<option>${esc(s)}</option>`).join('')}</select>` : '';
-    const soldOut = p.in_stock === false;
+    const qty = (p.stock_qty===null||p.stock_qty===undefined) ? null : Number(p.stock_qty);
+    const soldOut = p.in_stock === false || qty === 0;
+    const lowStock = !soldOut && qty !== null && qty <= 5;
     const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
     const multi = imgs.length>1;
     const gallery = imgs.length
@@ -408,6 +423,7 @@ function render(){
         <h3>${esc(p.name)}</h3>
         ${p.description?`<p style="font-size:13px;color:var(--smoke)">${esc(p.description)}</p>`:''}
         <div class="price">${CURRENCY}${Number(p.price).toLocaleString()}</div>
+        ${soldOut?'<div style="font-size:12px;color:var(--danger);letter-spacing:1px">OUT OF STOCK</div>':lowStock?`<div style="font-size:12px;color:var(--danger)">Only ${qty} left in stock!</div>`:qty!==null?`<div style="font-size:12px;color:var(--smoke)">${qty} available</div>`:''}
         ${sizeSel}
         <button class="add" data-id="${p.id}" ${soldOut?'disabled style="opacity:.5;cursor:not-allowed"':''}>${soldOut?'Sold out':'Add to cart'}</button>
       </div>`;
@@ -456,6 +472,12 @@ document.getElementById('productGrid').addEventListener('click',e=>{
     if(!size){ toast('Please select a size first'); return; }
   }
   const item = cart.find(x=>x.id===p.id && x.size===size);
+  const inCartTotal = cart.filter(x=>x.id===p.id).reduce((s,x)=>s+x.qty,0);
+  const stockCap = (p.stock_qty===null||p.stock_qty===undefined) ? Infinity : Number(p.stock_qty);
+  if(inCartTotal >= Math.min(MAX_PER_ITEM, stockCap)){
+    toast(inCartTotal >= stockCap ? `Only ${stockCap} available in stock` : `Maximum ${MAX_PER_ITEM} per item allowed`);
+    return;
+  }
   if(item) item.qty++; else cart.push({id:p.id,qty:1,size});
   toast('Added to cart');
   renderCart();
@@ -489,7 +511,16 @@ function renderCart(){
 document.getElementById('cartBody').addEventListener('click',e=>{
   const idx = e.target.dataset.idx; if(idx===undefined) return;
   const i = parseInt(idx);
-  if(e.target.dataset.act==='inc') cart[i].qty++;
+  if(e.target.dataset.act==='inc'){
+    const p = products.find(x=>x.id===cart[i].id);
+    const inCartTotal = cart.filter(x=>x.id===cart[i].id).reduce((s,x)=>s+x.qty,0);
+    const stockCap = (p && p.stock_qty!==null && p.stock_qty!==undefined) ? Number(p.stock_qty) : Infinity;
+    if(inCartTotal >= Math.min(MAX_PER_ITEM, stockCap)){
+      toast(inCartTotal >= stockCap ? `Only ${stockCap} available in stock` : `Maximum ${MAX_PER_ITEM} per item allowed`);
+      return;
+    }
+    cart[i].qty++;
+  }
   if(e.target.dataset.act==='dec'){ cart[i].qty--; if(cart[i].qty<1) cart.splice(i,1); }
   if(e.target.dataset.act==='rm') cart.splice(i,1);
   renderCart();
@@ -514,17 +545,19 @@ document.getElementById('placeOrder').onclick=async(e)=>{
   if(!name||!phone||!addr){toast('Please fill name, phone, and address');return}
   const items = cart.map(i=>{const p=products.find(x=>x.id===i.id);return{name:p.name + (i.size?` (Size ${i.size})`:''),price:p.price,qty:i.qty}});
   const total = cartTotal();
+  const confirmNum = document.getElementById('coConfirm').value;
+  const confirmLabel = document.getElementById('coConfirm').selectedOptions[0].textContent;
   e.target.disabled = true;
   const { error } = await db.from('orders').insert({
-    customer_name:name, phone, city, address:addr, items, total
+    customer_name:name, phone, city, address: addr + '\n[Confirm via: ' + confirmLabel + ']', items, total
   });
   e.target.disabled = false;
   if(error){ toast('Order failed: '+error.message); return; }
 
-  // Open a pre-filled WhatsApp message to the store owner
+  // Open a pre-filled WhatsApp message to the number the customer chose
   const lines = items.map(i=>`• ${i.name} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}`).join('\n');
   const msg = `New order — Bushido Leather\n\n${lines}\n\nTotal: ${CURRENCY}${total.toLocaleString()}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
-  window.open(`https://wa.me/${ORDER_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
+  window.open(`https://wa.me/${confirmNum}?text=${encodeURIComponent(msg)}`, '_blank');
 
   cart=[]; renderCart();
   closeModal('checkoutModal');
@@ -623,17 +656,19 @@ document.getElementById('saveProduct').onclick=async(e)=>{
   const name=val('pName'), price=parseFloat(document.getElementById('pPrice').value);
   const cat=document.getElementById('pCat').value;
   const description=val('pDesc'), sizes=val('pSizes');
-  const in_stock=document.getElementById('pStock').value==='true';
+  const qtyRaw = document.getElementById('pQty').value;
+  const stock_qty = qtyRaw==='' ? null : Math.max(0, parseInt(qtyRaw));
+  const in_stock = stock_qty === null ? true : stock_qty > 0;
   if(!name||isNaN(price)||price<0){toast('Enter a name and valid price');return}
   e.target.disabled=true;
   const urls = await uploadImages();
   let error;
   if(editingId){
-    const upd = { name, price, cat, description, sizes, in_stock };
+    const upd = { name, price, cat, description, sizes, in_stock, stock_qty };
     if(urls){ upd.images = urls; upd.img = urls[0]; }
     ({ error } = await db.from('products').update(upd).eq('id', editingId));
   }else{
-    ({ error } = await db.from('products').insert({ name, price, cat, description, sizes, in_stock, images: urls || [], img: urls ? urls[0] : '' }));
+    ({ error } = await db.from('products').insert({ name, price, cat, description, sizes, in_stock, stock_qty, images: urls || [], img: urls ? urls[0] : '' }));
   }
   e.target.disabled=false;
   if(error){ toast('Save failed: '+error.message); return; }
@@ -644,8 +679,7 @@ document.getElementById('saveProduct').onclick=async(e)=>{
 document.getElementById('cancelEdit').onclick=resetForm;
 function resetForm(){
   editingId=null; pendingFiles=[];
-  ['pName','pPrice','pDesc','pSizes'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('pStock').value='true';
+  ['pName','pPrice','pDesc','pSizes','pQty'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pImage').value='';
   document.getElementById('previewRow').innerHTML='';
   document.getElementById('saveProduct').textContent='Add product';
@@ -659,7 +693,7 @@ function renderAdminList(){
     el.className='admin-item';
     el.innerHTML=`
       ${p.img?`<img src="${p.img}">`:'<div style="width:48px;height:48px;background:#eee9df"></div>'}
-      <div class="ai-info">${esc(p.name)}<br><small>${p.cat} · ${CURRENCY}${Number(p.price).toLocaleString()}</small></div>
+      <div class="ai-info">${esc(p.name)}<br><small>${p.cat} · ${CURRENCY}${Number(p.price).toLocaleString()} · ${(p.stock_qty===null||p.stock_qty===undefined)?'stock not set':'stock: '+p.stock_qty}</small></div>
       <button class="icon-btn" data-edit="${p.id}">Edit</button>
       <button class="icon-btn danger" data-del="${p.id}">Delete</button>`;
     list.appendChild(el);
@@ -675,7 +709,7 @@ document.getElementById('adminList').addEventListener('click',async e=>{
     document.getElementById('pCat').value=p.cat;
     document.getElementById('pDesc').value=p.description||'';
     document.getElementById('pSizes').value=p.sizes||'';
-    document.getElementById('pStock').value=(p.in_stock===false)?'false':'true';
+    document.getElementById('pQty').value=(p.stock_qty===null||p.stock_qty===undefined)?'':p.stock_qty;
     const row=document.getElementById('previewRow'); row.innerHTML='';
     const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
     imgs.forEach(u=>{const pv=document.createElement('img');pv.src=u;pv.style.cssText='width:70px;height:70px;object-fit:cover;border:1px solid var(--line)';row.appendChild(pv)});
