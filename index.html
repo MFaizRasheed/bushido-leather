@@ -221,7 +221,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
   <div class="contact-grid" style="max-width:1000px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
     <div class="contact-card" style="text-align:left">
       <div class="cc-label">Delivery</div>
-      <p style="font-size:14px;color:var(--smoke)">We deliver all across Pakistan via courier. Standard delivery is <b>Rs 250</b> — orders above <b>Rs 3,000</b> get <b>50% off delivery</b>, and orders above <b>Rs 5,000</b> ship <b>FREE</b>. Orders are dispatched within 1–2 working days and typically arrive in 3–6 working days. Payment is <b>cash on delivery</b> — pay only when your order is in your hands.</p>
+      <p style="font-size:14px;color:var(--smoke)">We deliver all across Pakistan via courier. Standard delivery is <b>Rs 250</b> — orders above <b>Rs 3,000</b> get <b>50% off delivery</b>, and orders above <b>Rs 5,000</b> ship <b>FREE</b>. Orders are dispatched within 1–2 working days and typically arrive in 3–6 working days. Pay by <b>cash on delivery</b>, <b>Easypaisa</b>, or <b>Meezan Bank transfer</b> — prepaid orders ship after payment verification.</p>
     </div>
     <div class="contact-card" style="text-align:left">
       <div class="cc-label">Cancellation &amp; Returns</div>
@@ -280,13 +280,35 @@ footer a{color:var(--gold-soft);text-decoration:none}
   <div class="modal-card">
     <button class="modal-close" data-close="checkoutModal">✕</button>
     <h3>Checkout</h3>
-    <p class="sub">Cash on delivery — we'll confirm your order on WhatsApp or by phone.</p>
+    <p class="sub">Pay by cash on delivery, Easypaisa, or bank transfer — we'll confirm your order on WhatsApp.</p>
     <div class="field"><label>Full name</label><input id="coName"></div>
     <div class="row-2">
       <div class="field"><label>Phone / WhatsApp</label><input id="coPhone" type="tel"></div>
       <div class="field"><label>City</label><input id="coCity"></div>
     </div>
     <div class="field"><label>Delivery address</label><textarea id="coAddress" rows="2"></textarea></div>
+    <div class="field"><label>Payment method</label>
+      <select id="coPayment">
+        <option value="cod">Cash on Delivery (pay at your door)</option>
+        <option value="easypaisa">Easypaisa (pay now)</option>
+        <option value="bank">Bank Transfer — Meezan Bank (pay now)</option>
+      </select>
+    </div>
+    <div id="payDetails" style="display:none;background:#fbf6ea;border:1px solid var(--gold);padding:14px;font-size:14px;margin-bottom:16px">
+      <div id="payEasypaisa" style="display:none">
+        <b>Easypaisa payment details:</b><br>
+        Number: <b>0349 9361259</b><br>
+        Account name: <b>Muhammad Faiz Rasheed</b><br>
+        <span style="color:var(--smoke);font-size:13px">Send the order total to this Easypaisa account, take a screenshot of the payment, and send it to us on WhatsApp after placing your order. Your order ships once payment is verified.</span>
+      </div>
+      <div id="payBank" style="display:none">
+        <b>Bank transfer details:</b><br>
+        Bank: <b>Meezan Bank</b><br>
+        Account number: <b>26010108119634</b><br>
+        Account name: <b>Muhammad Faiz Rasheed</b><br>
+        <span style="color:var(--smoke);font-size:13px">Transfer the order total to this account, take a screenshot of the payment, and send it to us on WhatsApp after placing your order. Your order ships once payment is verified.</span>
+      </div>
+    </div>
     <div class="field"><label>Confirm my order through this number</label>
       <select id="coConfirm">
         <option value="923499308927">WhatsApp — 0349 9308927</option>
@@ -582,6 +604,12 @@ document.getElementById('openCheckout').onclick=()=>{
   document.getElementById('coTotal').textContent = CURRENCY + (sub+del).toLocaleString();
   openModal('checkoutModal');
 };
+document.getElementById('coPayment').addEventListener('change',e=>{
+  const v = e.target.value;
+  document.getElementById('payDetails').style.display = v==='cod' ? 'none' : 'block';
+  document.getElementById('payEasypaisa').style.display = v==='easypaisa' ? 'block' : 'none';
+  document.getElementById('payBank').style.display = v==='bank' ? 'block' : 'none';
+});
 document.getElementById('placeOrder').onclick=async(e)=>{
   const name=val('coName'), phone=val('coPhone'), city=val('coCity'), addr=val('coAddress');
   if(!name||!phone||!addr){toast('Please fill name, phone, and address');return}
@@ -591,16 +619,19 @@ document.getElementById('placeOrder').onclick=async(e)=>{
   const total = subtotal + delivery;
   const confirmNum = document.getElementById('coConfirm').value;
   const confirmLabel = document.getElementById('coConfirm').selectedOptions[0].textContent;
+  const payMethod = document.getElementById('coPayment').value;
+  const payLabel = {cod:'Cash on Delivery', easypaisa:'Easypaisa (0349 9361259 — Muhammad Faiz Rasheed)', bank:'Bank Transfer (Meezan 26010108119634 — Muhammad Faiz Rasheed)'}[payMethod];
   e.target.disabled = true;
   const { error } = await db.from('orders').insert({
-    customer_name:name, phone, city, address: addr + '\n[Confirm via: ' + confirmLabel + ']', items, total
+    customer_name:name, phone, city, address: addr + '\n[Confirm via: ' + confirmLabel + ']', items, total, payment_method: payMethod
   });
   e.target.disabled = false;
   if(error){ toast('Order failed: '+error.message); return; }
 
   // Open a pre-filled WhatsApp message to the number the customer chose
   const lines = items.map(i=>`• ${i.name} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}`).join('\n');
-  const msg = `New order — Bushido Leather\n\n${lines}\n\nSubtotal: ${CURRENCY}${subtotal.toLocaleString()}\nDelivery: ${delivery===0?'FREE':CURRENCY+delivery.toLocaleString()}\nTotal: ${CURRENCY}${total.toLocaleString()}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
+  const payNote = payMethod==='cod' ? '' : '\n\n(I will send the payment screenshot in this chat)';
+  const msg = `New order — Bushido Leather\n\n${lines}\n\nSubtotal: ${CURRENCY}${subtotal.toLocaleString()}\nDelivery: ${delivery===0?'FREE':CURRENCY+delivery.toLocaleString()}\nTotal: ${CURRENCY}${total.toLocaleString()}\nPayment: ${payLabel}${payNote}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
   window.open(`https://wa.me/${confirmNum}?text=${encodeURIComponent(msg)}`, '_blank');
 
   cart=[]; renderCart();
@@ -804,7 +835,7 @@ async function loadOrders(){
       <div class="oc-head"><b>${esc(o.customer_name)}</b><span class="status" style="border-color:${stColor};color:${stColor}">${esc(st)}</span></div>
       <div style="color:var(--smoke);font-size:12px">${d}</div>
       <ul>${items}</ul>
-      <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b></div>
+      <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b> · <span style="font-size:12px;color:${o.payment_method==='cod'||!o.payment_method?'var(--smoke)':'#1f7a4d'}">${o.payment_method==='easypaisa'?'💳 Easypaisa — verify payment!':o.payment_method==='bank'?'🏦 Bank transfer — verify payment!':'💵 Cash on Delivery'}</span></div>
       <div style="margin-top:6px;font-size:13px">📞 ${esc(o.phone)} · ${esc(o.city||'')}<br>📍 ${esc(o.address)}</div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
         <a class="icon-btn" style="text-decoration:none" href="https://wa.me/92${esc(String(o.phone).replace(/\D/g,'').replace(/^0/,''))}" target="_blank" rel="noopener">WhatsApp customer</a>
