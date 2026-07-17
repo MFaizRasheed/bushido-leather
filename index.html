@@ -201,6 +201,11 @@ footer a{color:var(--gold-soft);text-decoration:none}
     <div class="eyebrow" style="color:var(--gold)">The Collection</div>
     <h2>Featured <span>Pieces</span></h2>
   </div>
+  <div style="max-width:440px;margin:0 auto 22px;position:relative">
+    <input id="searchBox" type="search" placeholder="Search watches, wallets, shoes…" autocomplete="off"
+      style="width:100%;padding:13px 44px 13px 18px;border:1px solid var(--line);background:#fff;outline:none;font-size:15px">
+    <span style="position:absolute;right:16px;top:50%;transform:translateY(-50%);color:var(--smoke);pointer-events:none">🔍</span>
+  </div>
   <div class="filters">
     <button class="chip active" data-filter="all">All</button>
     <button class="chip" data-filter="watch">Watches</button>
@@ -513,9 +518,26 @@ async function loadProducts(){
 let activeFilter = 'all';
 function render(){
   const grid = document.getElementById('productGrid');
-  const list = activeFilter==='all' ? products : products.filter(p=>p.cat===activeFilter);
+  let list = activeFilter==='all' ? products : products.filter(p=>p.cat===activeFilter);
+  const q = (document.getElementById('searchBox')?.value || '').trim().toLowerCase();
+  if(q){
+    list = list.filter(p =>
+      (p.name||'').toLowerCase().includes(q) ||
+      (p.description||'').toLowerCase().includes(q) ||
+      (p.cat||'').toLowerCase().includes(q)
+    );
+  }
   grid.innerHTML = '';
-  document.getElementById('emptyState').style.display = products.length ? 'none':'block';
+  const empt = document.getElementById('emptyState');
+  if(!products.length){
+    empt.textContent = 'New collection arriving soon — check back shortly!';
+    empt.style.display = 'block';
+  } else if(!list.length){
+    empt.textContent = q ? `No products found for "${q}" — try a different word or clear the search.` : 'No products in this category yet.';
+    empt.style.display = 'block';
+  } else {
+    empt.style.display = 'none';
+  }
   list.forEach(p=>{
     const el = document.createElement('div');
     el.className = 'product';
@@ -554,6 +576,7 @@ function render(){
 }
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
+document.getElementById('searchBox').addEventListener('input', render);
 document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
   document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
   c.classList.add('active');
