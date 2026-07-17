@@ -214,6 +214,19 @@ footer a{color:var(--gold-soft);text-decoration:none}
   </div>
 </section>
 
+<section class="section" id="reviews" style="padding-top:0">
+  <div class="section-head">
+    <div class="eyebrow" style="color:var(--gold)">What customers say</div>
+    <h2>Reviews <span>&amp; Ratings</span></h2>
+    <p style="color:var(--smoke);margin-top:10px">Real feedback from Bushido Leather customers.</p>
+  </div>
+  <div class="grid" id="reviewGrid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))"></div>
+  <p id="noReviews" style="text-align:center;color:var(--smoke);display:none">No reviews yet — be the first to share your experience!</p>
+  <div style="text-align:center;margin-top:30px">
+    <button class="btn" id="openReview">✍ Write a review</button>
+  </div>
+</section>
+
 <section class="section" id="policies" style="padding-top:0">
   <div class="section-head">
     <div class="eyebrow" style="color:var(--gold)">Good to know</div>
@@ -356,6 +369,24 @@ footer a{color:var(--gold-soft);text-decoration:none}
   </div>
 </div>
 
+<!-- Write review modal -->
+<div class="modal" id="reviewModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close="reviewModal">✕</button>
+    <h3>Write a Review</h3>
+    <p class="sub">Share your experience — your review appears after a quick check by our team.</p>
+    <div class="field"><label>Product</label><select id="rvProduct"></select></div>
+    <div class="field"><label>Your name</label><input id="rvName" placeholder="e.g. Ahmed K., Lahore"></div>
+    <div class="field"><label>Your rating</label>
+      <div id="rvStars" style="font-size:32px;letter-spacing:6px;cursor:pointer;user-select:none;color:#cfc6b5">
+        <span data-star="1">★</span><span data-star="2">★</span><span data-star="3">★</span><span data-star="4">★</span><span data-star="5">★</span>
+      </div>
+    </div>
+    <div class="field"><label>Your review</label><textarea id="rvComment" rows="3" placeholder="How was the quality, delivery, and service?"></textarea></div>
+    <button class="btn gold" id="rvSubmit" style="width:100%">Submit review</button>
+  </div>
+</div>
+
 <!-- Admin login modal -->
 <div class="modal" id="loginModal">
   <div class="modal-card">
@@ -382,6 +413,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
     <div class="tab-row">
       <button class="tab active" data-tab="productsTab">Products</button>
       <button class="tab" data-tab="ordersTab">Orders</button>
+      <button class="tab" data-tab="reviewsTab">Reviews</button>
     </div>
 
     <div id="productsTab">
@@ -412,6 +444,10 @@ footer a{color:var(--gold-soft);text-decoration:none}
 
     <div id="ordersTab" style="display:none">
       <div id="ordersList"><p style="color:var(--smoke);font-size:14px">Loading orders…</p></div>
+    </div>
+
+    <div id="reviewsTab" style="display:none">
+      <div id="reviewsAdminList"><p style="color:var(--smoke);font-size:14px">Loading reviews…</p></div>
     </div>
   </div>
 </div>
@@ -462,6 +498,7 @@ async function init(){
   refreshAdminLink();
   checkAdminHash();
   await loadProducts();
+  loadReviews();
 }
 
 /* ---------- products ---------- */
@@ -500,6 +537,7 @@ function render(){
       <div class="info">
         <div class="cat">${p.cat==='watch'?'Timepiece':p.cat==='wallet'?'Leather Wallet':'Leather Shoes'}</div>
         <h3>${esc(p.name)}</h3>
+        ${(()=>{const r=productRating(p.id);return r?`<div style="font-size:13px;color:var(--gold)">${'★'.repeat(Math.round(r.avg))}<span style="color:var(--smoke)"> ${r.avg} (${r.count})</span></div>`:''})()}
         ${p.description?`<p style="font-size:13px;color:var(--smoke)">${esc(p.description)}</p>`:''}
         <div class="price">${CURRENCY}${Number(p.price).toLocaleString()}</div>
         <div style="font-size:12px;color:var(--smoke)">🚚 Delivery ${CURRENCY}${DELIVERY_FEE} · <span style="color:var(--gold)">FREE over ${CURRENCY}${FREE_DELIVERY_OVER.toLocaleString()}</span></div>
@@ -737,9 +775,11 @@ function openAdminPanel(){
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   t.classList.add('active');
-  document.getElementById('productsTab').style.display = t.dataset.tab==='productsTab'?'block':'none';
-  document.getElementById('ordersTab').style.display = t.dataset.tab==='ordersTab'?'block':'none';
+  ['productsTab','ordersTab','reviewsTab'].forEach(id=>{
+    document.getElementById(id).style.display = t.dataset.tab===id ? 'block' : 'none';
+  });
   if(t.dataset.tab==='ordersTab') loadOrders();
+  if(t.dataset.tab==='reviewsTab') loadReviewsAdmin();
 });
 
 /* ---------- admin: product form ---------- */
@@ -923,6 +963,110 @@ function toast(msg){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
 }
+
+/* ---------- customer reviews & ratings ---------- */
+let reviews = [];
+function starStr(n){ return '★'.repeat(n)+'☆'.repeat(5-n); }
+
+async function loadReviews(){
+  const { data, error } = await db.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(30);
+  if(error) return;
+  reviews = data || [];
+  renderReviews();
+  render(); /* refresh product cards so star averages show */
+}
+function productRating(pid){
+  const rs = reviews.filter(r=>r.product_id===pid);
+  if(!rs.length) return null;
+  const avg = rs.reduce((s,r)=>s+r.rating,0)/rs.length;
+  return { avg: Math.round(avg*10)/10, count: rs.length };
+}
+function renderReviews(){
+  const grid=document.getElementById('reviewGrid');
+  document.getElementById('noReviews').style.display = reviews.length ? 'none':'block';
+  grid.innerHTML='';
+  reviews.forEach(r=>{
+    const p = products.find(x=>x.id===r.product_id);
+    const el=document.createElement('div');
+    el.style.cssText='background:#fff;border:1px solid var(--line);padding:20px';
+    el.innerHTML=`
+      <div style="color:var(--gold);font-size:18px;letter-spacing:3px">${starStr(r.rating)}</div>
+      ${r.comment?`<p style="font-size:14px;color:var(--ink);margin:10px 0">"${esc(r.comment)}"</p>`:''}
+      <div style="font-size:13px;color:var(--smoke);margin-top:8px"><b style="color:var(--gold)">${esc(r.name)}</b>${p?` · ${esc(p.name)}`:''}</div>`;
+    grid.appendChild(el);
+  });
+}
+
+/* write-review modal */
+let rvRating = 0;
+document.getElementById('openReview').onclick=()=>{
+  const sel=document.getElementById('rvProduct');
+  sel.innerHTML='<option value="">— General / store experience —</option>' +
+    products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  rvRating=0; paintStars();
+  openModal('reviewModal');
+};
+function paintStars(){
+  document.querySelectorAll('#rvStars span').forEach(s=>{
+    s.style.color = parseInt(s.dataset.star)<=rvRating ? 'var(--gold)' : '#cfc6b5';
+  });
+}
+document.getElementById('rvStars').addEventListener('click',e=>{
+  if(e.target.dataset.star){ rvRating=parseInt(e.target.dataset.star); paintStars(); }
+});
+document.getElementById('rvSubmit').onclick=async(e)=>{
+  const name=val('rvName'), comment=val('rvComment');
+  const pid=document.getElementById('rvProduct').value || null;
+  if(!name){toast('Please enter your name');return}
+  if(!rvRating){toast('Please tap the stars to rate');return}
+  e.target.disabled=true;
+  const { error } = await db.from('reviews').insert({ product_id: pid, name, rating: rvRating, comment, approved:false });
+  e.target.disabled=false;
+  if(error){toast('Could not submit: '+error.message);return}
+  closeModal('reviewModal');
+  ['rvName','rvComment'].forEach(id=>document.getElementById(id).value='');
+  rvRating=0;
+  toast('Thank you! Your review will appear after approval.');
+};
+
+/* admin moderation */
+async function loadReviewsAdmin(){
+  const wrap=document.getElementById('reviewsAdminList');
+  const { data, error } = await db.from('reviews').select('*').order('approved',{ascending:true}).order('created_at',{ascending:false}).limit(100);
+  if(error){wrap.innerHTML='<p style="color:var(--danger)">Could not load: '+esc(error.message)+'</p>';return}
+  if(!data.length){wrap.innerHTML='<p style="color:var(--smoke);font-size:14px">No reviews submitted yet.</p>';return}
+  wrap.innerHTML='';
+  data.forEach(r=>{
+    const p=products.find(x=>x.id===r.product_id);
+    const el=document.createElement('div');
+    el.className='order-card';
+    el.style.borderLeft = r.approved ? '3px solid #1f7a4d' : '3px solid var(--gold)';
+    el.innerHTML=`
+      <div class="oc-head"><b>${esc(r.name)}</b><span class="status" style="${r.approved?'border-color:#1f7a4d;color:#1f7a4d':''}">${r.approved?'live':'pending'}</span></div>
+      <div style="color:var(--gold);font-size:15px">${starStr(r.rating)}</div>
+      ${r.comment?`<p style="font-size:13px;margin:6px 0">"${esc(r.comment)}"</p>`:''}
+      <div style="font-size:12px;color:var(--smoke)">${p?esc(p.name):'General'} · ${new Date(r.created_at).toLocaleDateString()}</div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        ${!r.approved?`<button class="icon-btn" data-rvapprove="${r.id}">Approve</button>`:''}
+        <button class="icon-btn danger" data-rvdel="${r.id}">Delete</button>
+      </div>`;
+    wrap.appendChild(el);
+  });
+}
+document.getElementById('reviewsAdminList').addEventListener('click',async e=>{
+  const ap=e.target.dataset.rvapprove, del=e.target.dataset.rvdel;
+  if(ap){
+    const { error } = await db.from('reviews').update({approved:true}).eq('id',ap);
+    if(error){toast('Failed: '+error.message);return}
+    toast('Review published'); loadReviewsAdmin(); loadReviews();
+  }
+  if(del){
+    if(!confirm('Delete this review?')) return;
+    const { error } = await db.from('reviews').delete().eq('id',del);
+    if(error){toast('Failed: '+error.message);return}
+    toast('Review deleted'); loadReviewsAdmin(); loadReviews();
+  }
+});
 
 /* ---------- order tracking (customer self-service) ---------- */
 function genOrderCode(){
