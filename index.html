@@ -388,7 +388,22 @@ footer a{color:var(--gold-soft);text-decoration:none}
       </div>
     </div>
     <div class="field"><label>Your review</label><textarea id="rvComment" rows="3" placeholder="How was the quality, delivery, and service?"></textarea></div>
+    <div class="field">
+      <label>Add photos (optional — up to 3)</label>
+      <input id="rvImages" type="file" accept="image/*" multiple>
+      <div id="rvPreviewRow" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>
     <button class="btn gold" id="rvSubmit" style="width:100%">Submit review</button>
+  </div>
+</div>
+
+<!-- Product reviews modal -->
+<div class="modal" id="prodReviewsModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close="prodReviewsModal">✕</button>
+    <h3 id="prTitle">Reviews</h3>
+    <div id="prSummary" style="color:var(--gold);font-size:20px;margin-bottom:14px"></div>
+    <div id="prList"></div>
   </div>
 </div>
 
@@ -559,7 +574,7 @@ function render(){
       <div class="info">
         <div class="cat">${p.cat==='watch'?'Timepiece':p.cat==='wallet'?'Leather Wallet':'Leather Shoes'}</div>
         <h3>${esc(p.name)}</h3>
-        ${(()=>{const r=productRating(p.id);return r?`<div style="font-size:13px;color:var(--gold)">${'★'.repeat(Math.round(r.avg))}<span style="color:var(--smoke)"> ${r.avg} (${r.count})</span></div>`:''})()}
+        ${(()=>{const r=productRating(p.id);return r?`<div class="rating-link" data-rvpid="${p.id}" style="font-size:13px;color:var(--gold);cursor:pointer">${'★'.repeat(Math.round(r.avg))}<span style="color:var(--smoke)"> ${r.avg} (${r.count}) — see reviews</span></div>`:''})()}
         ${p.description?`<p style="font-size:13px;color:var(--smoke)">${esc(p.description)}</p>`:''}
         <div class="price">${CURRENCY}${Number(p.price).toLocaleString()}</div>
         <div style="font-size:12px;color:var(--smoke)">🚚 Delivery ${CURRENCY}${DELIVERY_FEE} · <span style="color:var(--gold)">FREE over ${CURRENCY}${FREE_DELIVERY_OVER.toLocaleString()}</span></div>
@@ -591,6 +606,9 @@ document.querySelectorAll('a[data-filter]').forEach(a=>a.addEventListener('click
 
 /* ---------- cart ---------- */
 document.getElementById('productGrid').addEventListener('click',e=>{
+  /* open product reviews */
+  const rvEl = e.target.closest('.rating-link');
+  if(rvEl){ openProductReviews(rvEl.dataset.rvpid); return; }
   /* photo gallery arrows */
   if(e.target.classList.contains('gal-arrow')){
     const card = e.target.closest('.product');
@@ -993,6 +1011,71 @@ document.getElementById('logoHome').onclick=e=>{
   history.replaceState(null,'',location.pathname); /* clean any #hash from the URL */
 };
 
+/* review photo uploads */
+let rvFiles = [];
+document.getElementById('rvImages').addEventListener('change',e=>{
+  const files = Array.from(e.target.files||[]).slice(0,3);
+  rvFiles = [];
+  const row = document.getElementById('rvPreviewRow');
+  row.innerHTML='';
+  files.forEach(f=>{
+    const img=new Image(), reader=new FileReader();
+    reader.onload=()=>{img.src=reader.result};
+    img.onload=()=>{
+      const max=800, scale=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=img.width*scale; c.height=img.height*scale;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>{ rvFiles.push(b); },'image/jpeg',0.82);
+      const pv=document.createElement('img');
+      pv.src=c.toDataURL('image/jpeg',0.82);
+      pv.style.cssText='width:64px;height:64px;object-fit:cover;border:1px solid var(--line)';
+      row.appendChild(pv);
+    };
+    reader.readAsDataURL(f);
+  });
+});
+async function uploadReviewImages(){
+  const urls=[];
+  for(let i=0;i<rvFiles.length;i++){
+    const path = 'rv-'+Date.now()+'-'+i+'.jpg';
+    const { error } = await db.storage.from('review-images').upload(path, rvFiles[i], { contentType:'image/jpeg' });
+    if(error){ toast('Photo upload failed: '+error.message); return urls; }
+    const { data } = db.storage.from('review-images').getPublicUrl(path);
+    urls.push(data.publicUrl);
+  }
+  return urls;
+}
+
+/* per-product reviews viewer */
+function reviewImagesHtml(r){
+  const imgs = r.images||[];
+  if(!imgs.length) return '';
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">`+
+    imgs.map(u=>`<img src="${u}" style="width:64px;height:64px;object-fit:cover;border:1px solid var(--line);cursor:pointer" onclick="window.open('${u}','_blank')">`).join('')+
+    `</div>`;
+}
+function openProductReviews(pid){
+  const p = products.find(x=>x.id===pid); if(!p) return;
+  const rs = reviews.filter(r=>r.product_id===pid);
+  document.getElementById('prTitle').textContent = 'Reviews — ' + p.name;
+  const r = productRating(pid);
+  document.getElementById('prSummary').innerHTML = r ? `${starStr(Math.round(r.avg))} <span style="font-size:14px;color:var(--smoke)">${r.avg} out of 5 · ${r.count} review${r.count>1?'s':''}</span>` : '';
+  const list = document.getElementById('prList');
+  list.innerHTML = rs.length ? '' : '<p style="color:var(--smoke);font-size:14px">No reviews for this product yet.</p>';
+  rs.forEach(rv=>{
+    const el=document.createElement('div');
+    el.style.cssText='border-bottom:1px solid var(--line);padding:14px 0';
+    el.innerHTML=`
+      <div style="color:var(--gold);font-size:15px">${starStr(rv.rating)}</div>
+      ${rv.comment?`<p style="font-size:14px;margin:6px 0">"${esc(rv.comment)}"</p>`:''}
+      ${reviewImagesHtml(rv)}
+      <div style="font-size:12px;color:var(--smoke);margin-top:6px"><b style="color:var(--gold)">${esc(rv.name)}</b> · ${new Date(rv.created_at).toLocaleDateString()}</div>`;
+    list.appendChild(el);
+  });
+  openModal('prodReviewsModal');
+}
+
 /* ---------- customer reviews & ratings ---------- */
 let reviews = [];
 function starStr(n){ return '★'.repeat(n)+'☆'.repeat(5-n); }
@@ -1021,6 +1104,7 @@ function renderReviews(){
     el.innerHTML=`
       <div style="color:var(--gold);font-size:18px;letter-spacing:3px">${starStr(r.rating)}</div>
       ${r.comment?`<p style="font-size:14px;color:var(--ink);margin:10px 0">"${esc(r.comment)}"</p>`:''}
+      ${reviewImagesHtml(r)}
       <div style="font-size:13px;color:var(--smoke);margin-top:8px"><b style="color:var(--gold)">${esc(r.name)}</b>${p?` · ${esc(p.name)}`:''}</div>`;
     grid.appendChild(el);
   });
@@ -1049,12 +1133,15 @@ document.getElementById('rvSubmit').onclick=async(e)=>{
   if(!name){toast('Please enter your name');return}
   if(!rvRating){toast('Please tap the stars to rate');return}
   e.target.disabled=true;
-  const { error } = await db.from('reviews').insert({ product_id: pid, name, rating: rvRating, comment, approved:false });
+  const imgUrls = rvFiles.length ? await uploadReviewImages() : [];
+  const { error } = await db.from('reviews').insert({ product_id: pid, name, rating: rvRating, comment, images: imgUrls, approved:false });
   e.target.disabled=false;
   if(error){toast('Could not submit: '+error.message);return}
   closeModal('reviewModal');
   ['rvName','rvComment'].forEach(id=>document.getElementById(id).value='');
-  rvRating=0;
+  document.getElementById('rvImages').value='';
+  document.getElementById('rvPreviewRow').innerHTML='';
+  rvFiles=[]; rvRating=0;
   toast('Thank you! Your review will appear after approval.');
 };
 
@@ -1074,6 +1161,7 @@ async function loadReviewsAdmin(){
       <div class="oc-head"><b>${esc(r.name)}</b><span class="status" style="${r.approved?'border-color:#1f7a4d;color:#1f7a4d':''}">${r.approved?'live':'pending'}</span></div>
       <div style="color:var(--gold);font-size:15px">${starStr(r.rating)}</div>
       ${r.comment?`<p style="font-size:13px;margin:6px 0">"${esc(r.comment)}"</p>`:''}
+      ${reviewImagesHtml(r)}
       <div style="font-size:12px;color:var(--smoke)">${p?esc(p.name):'General'} · ${new Date(r.created_at).toLocaleDateString()}</div>
       <div style="margin-top:10px;display:flex;gap:8px">
         ${!r.approved?`<button class="icon-btn" data-rvapprove="${r.id}">Approve</button>`:''}
@@ -1091,6 +1179,11 @@ document.getElementById('reviewsAdminList').addEventListener('click',async e=>{
   }
   if(del){
     if(!confirm('Delete this review?')) return;
+    const rv = (await db.from('reviews').select('images').eq('id',del).single()).data;
+    if(rv && rv.images && rv.images.length){
+      const paths = rv.images.map(u=>{try{return decodeURIComponent(u.split('/review-images/')[1].split('?')[0])}catch(_){return null}}).filter(Boolean);
+      if(paths.length) await db.storage.from('review-images').remove(paths);
+    }
     const { error } = await db.from('reviews').delete().eq('id',del);
     if(error){toast('Failed: '+error.message);return}
     toast('Review deleted'); loadReviewsAdmin(); loadReviews();
