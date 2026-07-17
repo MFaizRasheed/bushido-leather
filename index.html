@@ -174,6 +174,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
       <a href="#shop" data-filter="wallet">Wallets</a>
       <a href="#shop" data-filter="shoes">Shoes</a>
       <a href="#policies">Delivery</a>
+      <a href="#" id="openTrack">Track Order</a>
       <a href="#contact">Contact</a>
       <a href="#" class="admin-link" id="openAdmin" style="display:none">Manage Store</a>
       <button class="cart-btn" id="openCart">Cart · <span id="cartCount">0</span></button>
@@ -325,6 +326,33 @@ footer a{color:var(--gold-soft);text-decoration:none}
     <div class="total-row" style="margin:0;font-size:14px;font-weight:400"><span>Delivery</span><span id="coDelivery">Rs 0</span></div>
     <div class="total-row" style="margin:6px 0 18px"><span>Order total</span><span id="coTotal">Rs 0</span></div>
     <button class="btn gold" id="placeOrder" style="width:100%">Place order</button>
+  </div>
+</div>
+
+<!-- Order placed success modal -->
+<div class="modal" id="successModal">
+  <div class="modal-card" style="text-align:center">
+    <button class="modal-close" data-close="successModal">✕</button>
+    <h3>Order Placed! 🎉</h3>
+    <p class="sub">Save your order code — you can use it any time to track or cancel your order.</p>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:44px;letter-spacing:8px;color:var(--gold);border:1px dashed var(--gold);padding:14px;margin:10px 0 18px" id="successCode">------</div>
+    <p style="font-size:13px;color:var(--smoke);margin-bottom:18px">We've also opened WhatsApp with your order — please press send so we can confirm it quickly.</p>
+    <button class="btn gold" data-close="successModal">Done</button>
+  </div>
+</div>
+
+<!-- Track order modal -->
+<div class="modal" id="trackModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close="trackModal">✕</button>
+    <h3>Track Your Order</h3>
+    <p class="sub">Enter the order code you received when placing your order, plus the phone number you used.</p>
+    <div class="row-2">
+      <div class="field"><label>Order code</label><input id="trkCode" placeholder="e.g. K7M3PX" style="text-transform:uppercase"></div>
+      <div class="field"><label>Phone number</label><input id="trkPhone" type="tel" placeholder="03xxxxxxxxx"></div>
+    </div>
+    <button class="btn gold" id="trkBtn" style="width:100%">Track order</button>
+    <div id="trkResult" style="margin-top:20px"></div>
   </div>
 </div>
 
@@ -621,6 +649,7 @@ document.getElementById('placeOrder').onclick=async(e)=>{
   const delivery = deliveryFor(subtotal);
   const total = subtotal + delivery;
   const confirmNum = ORDER_WHATSAPP;   /* all orders go to the WhatsApp Business number */
+  const orderCode = genOrderCode();
   const payMethod = document.getElementById('coPayment').value;
   const payLabel = {
     cod:'Cash on Delivery',
@@ -631,21 +660,22 @@ document.getElementById('placeOrder').onclick=async(e)=>{
   }[payMethod];
   e.target.disabled = true;
   const { error } = await db.from('orders').insert({
-    customer_name:name, phone, city, address: addr, items, total, payment_method: payMethod
+    customer_name:name, phone, city, address: addr, items, total, payment_method: payMethod, order_code: orderCode
   });
   e.target.disabled = false;
   if(error){ toast('Order failed: '+error.message); return; }
 
-  // Open a pre-filled WhatsApp message to the number the customer chose
+  // Open a pre-filled WhatsApp message to the store's business number
   const lines = items.map(i=>`• ${i.name} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}`).join('\n');
   const payNote = payMethod==='cod' ? '' : '\n\n(I will send the payment screenshot in this chat)';
-  const msg = `New order — Bushido Leather\n\n${lines}\n\nSubtotal: ${CURRENCY}${subtotal.toLocaleString()}\nDelivery: ${delivery===0?'FREE':CURRENCY+delivery.toLocaleString()}\nTotal: ${CURRENCY}${total.toLocaleString()}\nPayment: ${payLabel}${payNote}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
+  const msg = `New order — Bushido Leather\nOrder code: ${orderCode}\n\n${lines}\n\nSubtotal: ${CURRENCY}${subtotal.toLocaleString()}\nDelivery: ${delivery===0?'FREE':CURRENCY+delivery.toLocaleString()}\nTotal: ${CURRENCY}${total.toLocaleString()}\nPayment: ${payLabel}${payNote}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
   window.open(`https://wa.me/${confirmNum}?text=${encodeURIComponent(msg)}`, '_blank');
 
   cart=[]; renderCart();
   closeModal('checkoutModal');
   ['coName','coPhone','coCity','coAddress'].forEach(id=>document.getElementById(id).value='');
-  toast('Order placed! We will contact you to confirm.');
+  document.getElementById('successCode').textContent = orderCode;
+  openModal('successModal');
   loadProducts(); /* refresh stock counts */
 };
 function val(id){return document.getElementById(id).value.trim()}
@@ -856,7 +886,7 @@ async function loadOrders(){
     el.className='order-card';
     el.innerHTML=`
       <div class="oc-head"><b>${esc(o.customer_name)}</b><span class="status" style="border-color:${stColor};color:${stColor}">${esc(st)}</span></div>
-      <div style="color:var(--smoke);font-size:12px">${d}</div>
+      <div style="color:var(--text-smoke, var(--smoke));font-size:12px">${o.order_code?('Code: <b>'+esc(o.order_code)+'</b> · '):''}${d}</div>
       <ul>${items}</ul>
       <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b> · <span style="font-size:12px;color:${o.payment_method==='cod'||!o.payment_method?'var(--smoke)':'#1f7a4d'}">${(o.payment_method||'cod').startsWith('easypaisa')?'💳 Easypaisa — verify payment!':(o.payment_method||'').startsWith('bank')?'🏦 Bank transfer — verify payment!':'💵 Cash on Delivery'}</span></div>
       <div style="margin-top:6px;font-size:13px">📞 ${esc(o.phone)} · ${esc(o.city||'')}<br>📍 ${esc(o.address)}</div>
@@ -892,6 +922,66 @@ function toast(msg){
   t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+/* ---------- order tracking (customer self-service) ---------- */
+function genOrderCode(){
+  const chars='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; /* no confusing 0/O/1/I/L */
+  let c=''; for(let i=0;i<6;i++) c+=chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+document.getElementById('openTrack').onclick=e=>{e.preventDefault();openModal('trackModal')};
+
+const STATUS_STEPS=['new','confirmed','packing','shipped','delivered'];
+const STATUS_LABEL={new:'Order received',confirmed:'Confirmed',packing:'Being packed',shipped:'Shipped',delivered:'Delivered'};
+
+document.getElementById('trkBtn').onclick=trackOrder;
+async function trackOrder(){
+  const code=val('trkCode').toUpperCase(), phone=val('trkPhone');
+  const box=document.getElementById('trkResult');
+  if(!code||!phone){box.innerHTML='<p style="color:var(--danger);font-size:14px">Please enter both order code and phone number.</p>';return}
+  box.innerHTML='<p style="color:var(--smoke);font-size:14px">Checking…</p>';
+  const { data, error } = await db.rpc('track_order',{p_code:code,p_phone:phone});
+  if(error){box.innerHTML='<p style="color:var(--danger);font-size:14px">Tracking failed: '+esc(error.message)+'</p>';return}
+  if(!data||!data.length){box.innerHTML='<p style="color:var(--danger);font-size:14px">No order found with that code and phone number. Please check both and try again.</p>';return}
+  const o=data[0];
+  const d=new Date(o.created_at).toLocaleDateString();
+  const itemLines=(o.items||[]).map(i=>`<li style="padding:2px 0">${esc(i.name)} ×${i.qty}</li>`).join('');
+  if(o.status==='cancelled'){
+    box.innerHTML=`<div style="border:1px solid var(--line);background:#fff;padding:18px">
+      <div style="font-size:13px;color:var(--smoke)">Order ${esc(o.order_code)} · ${d}</div>
+      <div style="color:var(--danger);font-weight:500;margin:8px 0">This order has been cancelled.</div>
+      <p style="font-size:13px;color:var(--smoke)">If this was a mistake, place a new order or contact us on WhatsApp.</p></div>`;
+    return;
+  }
+  const idx=STATUS_STEPS.indexOf(o.status);
+  const timeline=STATUS_STEPS.map((s,i)=>{
+    const done=i<=idx;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:5px 0">
+      <span style="width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;
+        ${done?'background:var(--gold);color:#fff':'background:#eee9df;color:var(--smoke)'}">${done?'✓':i+1}</span>
+      <span style="font-size:14px;${done?'color:var(--ink);font-weight:500':'color:var(--smoke)'}">${STATUS_LABEL[s]}</span>
+    </div>`;
+  }).join('');
+  const cancellable = o.status==='new';
+  box.innerHTML=`<div style="border:1px solid var(--line);background:#fff;padding:18px">
+    <div style="font-size:13px;color:var(--smoke)">Order ${esc(o.order_code)} · ${d} · Total ${CURRENCY}${Number(o.total).toLocaleString()}</div>
+    <ul style="list-style:none;margin:8px 0;font-size:13px;color:var(--smoke)">${itemLines}</ul>
+    ${timeline}
+    ${cancellable
+      ?`<button class="btn ghost" id="trkCancel" style="margin-top:14px;color:var(--danger);border-color:#e6cfc9">Cancel this order</button>`
+      :`<p style="font-size:12px;color:var(--smoke);margin-top:12px">Need a change? Contact us on <a href="https://wa.me/${ORDER_WHATSAPP}" target="_blank" rel="noopener" style="color:var(--gold)">WhatsApp</a>.</p>`}
+  </div>`;
+  if(cancellable){
+    document.getElementById('trkCancel').onclick=async()=>{
+      if(!confirm('Cancel this order? This cannot be undone.')) return;
+      const { data:res, error:err } = await db.rpc('cancel_my_order',{p_code:code,p_phone:phone});
+      if(err){toast('Cancel failed: '+err.message);return}
+      if(res==='cancelled'){ toast('Your order has been cancelled.'); trackOrder(); loadProducts(); }
+      else if(res==='too_late'){ toast('This order is already being processed — contact us on WhatsApp to cancel.'); trackOrder(); }
+      else { toast('Order not found.'); }
+    };
+  }
 }
 
 /* ---------- PWA: service worker + install button ---------- */
