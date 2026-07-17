@@ -175,7 +175,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
       <a href="#shop" data-filter="shoes">Shoes</a>
       <a href="#policies">Delivery</a>
       <a href="#contact">Contact</a>
-      <a href="#" class="admin-link" id="openAdmin">Manage Store</a>
+      <a href="#" class="admin-link" id="openAdmin" style="display:none">Manage Store</a>
       <button class="cart-btn" id="openCart">Cart · <span id="cartCount">0</span></button>
     </nav>
   </div>
@@ -209,7 +209,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
   <div class="loading" id="loading">Loading collection…</div>
   <div class="grid" id="productGrid"></div>
   <div class="empty-state" id="emptyState" style="display:none">
-    No products yet. <a href="#" id="emptyAdminLink">Open Manage Store</a> to add your first watch, wallet, or pair of shoes.
+    New collection arriving soon — check back shortly!
   </div>
 </section>
 
@@ -445,7 +445,9 @@ if (!configured) {
 async function init(){
   const { data } = await db.auth.getSession();
   session = data.session;
-  db.auth.onAuthStateChange((_e, s) => { session = s; });
+  db.auth.onAuthStateChange((_e, s) => { session = s; refreshAdminLink(); });
+  refreshAdminLink();
+  checkAdminHash();
   await loadProducts();
 }
 
@@ -468,5 +470,463 @@ function render(){
     const el = document.createElement('div');
     el.className = 'product';
     const sizes = (p.sizes||'').split(',').map(s=>s.trim()).filter(Boolean);
-    const sizeSel = sizes.length ? `<select class="size-pick" data-id="${p.id}" style="width:100%;padding:9px;border:1px solid var(--line);margin-
+    const sizeSel = sizes.length ? `<select class="size-pick" data-id="${p.id}" style="width:100%;padding:9px;border:1px solid var(--line);margin-top:8px"><option value="">Select size</option>${sizes.map(s=>`<option>${esc(s)}</option>`).join('')}</select>` : '';
+    const qty = (p.stock_qty===null||p.stock_qty===undefined) ? null : Number(p.stock_qty);
+    const soldOut = p.in_stock === false || qty === 0;
+    const lowStock = !soldOut && qty !== null && qty <= 5;
+    const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
+    const multi = imgs.length>1;
+    const gallery = imgs.length
+      ? `<img class="gal-img" data-pid="${p.id}" src="${imgs[0]}" alt="${esc(p.name)}" loading="lazy">
+         ${multi?`<button class="gal-arrow gal-prev" data-pid="${p.id}">‹</button>
+         <button class="gal-arrow gal-next" data-pid="${p.id}">›</button>
+         <div class="gal-dots">${imgs.map((_,x)=>`<span class="gal-dot${x===0?' on':''}" data-pid="${p.id}"></span>`).join('')}</div>`:''}`
+      : `<div class="noimg">${p.cat==='watch'?'XII':'B'}</div>`;
+    el.innerHTML = `
+      <div class="img-wrap" style="position:relative;${soldOut?'opacity:.5':''}">${gallery}</div>
+      <div class="info">
+        <div class="cat">${p.cat==='watch'?'Timepiece':p.cat==='wallet'?'Leather Wallet':'Leather Shoes'}</div>
+        <h3>${esc(p.name)}</h3>
+        ${p.description?`<p style="font-size:13px;color:var(--smoke)">${esc(p.description)}</p>`:''}
+        <div class="price">${CURRENCY}${Number(p.price).toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--smoke)">🚚 Delivery ${CURRENCY}${DELIVERY_FEE} · <span style="color:var(--gold)">FREE over ${CURRENCY}${FREE_DELIVERY_OVER.toLocaleString()}</span></div>
+        ${soldOut?'<div style="font-size:12px;color:var(--danger);letter-spacing:1px">OUT OF STOCK</div>':lowStock?`<div style="font-size:12px;color:var(--danger)">Only ${qty} left in stock!</div>`:qty!==null?`<div style="font-size:12px;color:var(--smoke)">${qty} available</div>`:''}
+        ${sizeSel}
+        <button class="add" data-id="${p.id}" ${soldOut?'disabled style="opacity:.5;cursor:not-allowed"':''}>${soldOut?'Sold out':'Add to cart'}</button>
+      </div>`;
+    el.dataset.imgs = JSON.stringify(imgs);
+    el.dataset.idx = "0";
+    grid.appendChild(el);
+  });
+  renderAdminList();
+  renderCart();
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');
+  activeFilter = c.dataset.filter;
+  render();
+}));
+document.querySelectorAll('a[data-filter]').forEach(a=>a.addEventListener('click',()=>{
+  const f = a.dataset.filter;
+  document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===f));
+  activeFilter=f; render();
+}));
+
+/* ---------- cart ---------- */
+document.getElementById('productGrid').addEventListener('click',e=>{
+  /* photo gallery arrows */
+  if(e.target.classList.contains('gal-arrow')){
+    const card = e.target.closest('.product');
+    const imgs = JSON.parse(card.dataset.imgs||'[]');
+    if(imgs.length<2) return;
+    let idx = parseInt(card.dataset.idx||'0');
+    idx = e.target.classList.contains('gal-next') ? (idx+1)%imgs.length : (idx-1+imgs.length)%imgs.length;
+    card.dataset.idx = idx;
+    card.querySelector('.gal-img').src = imgs[idx];
+    card.querySelectorAll('.gal-dot').forEach((d,x)=>d.classList.toggle('on',x===idx));
+    return;
+  }
+  if(!e.target.classList.contains('add') || e.target.disabled) return;
+  const p = products.find(x=>x.id===e.target.dataset.id);
+  const sizes = (p.sizes||'').split(',').map(s=>s.trim()).filter(Boolean);
+  let size = '';
+  if(sizes.length){
+    const sel = e.target.parentElement.querySelector('.size-pick');
+    size = sel ? sel.value : '';
+    if(!size){ toast('Please select a size first'); return; }
+  }
+  const item = cart.find(x=>x.id===p.id && x.size===size);
+  const inCartTotal = cart.filter(x=>x.id===p.id).reduce((s,x)=>s+x.qty,0);
+  const stockCap = (p.stock_qty===null||p.stock_qty===undefined) ? Infinity : Number(p.stock_qty);
+  if(inCartTotal >= Math.min(MAX_PER_ITEM, stockCap)){
+    toast(inCartTotal >= stockCap ? `Only ${stockCap} available in stock` : `Maximum ${MAX_PER_ITEM} per item allowed`);
+    return;
+  }
+  if(item) item.qty++; else cart.push({id:p.id,qty:1,size});
+  toast('Added to cart');
+  renderCart();
+});
+function cartTotal(){
+  return cart.reduce((s,i)=>{const p=products.find(x=>x.id===i.id);return s+(p?p.price*i.qty:0)},0);
+}
+function renderCart(){
+  cart = cart.filter(i=>products.find(p=>p.id===i.id));
+  const body = document.getElementById('cartBody');
+  body.innerHTML = cart.length? '' : '<p style="color:var(--smoke);padding:20px 0">Your cart is empty.</p>';
+  cart.forEach((i,idx)=>{
+    const p = products.find(x=>x.id===i.id);
+    const el = document.createElement('div');
+    el.className='cart-item';
+    el.innerHTML = `
+      ${p.img?`<img src="${p.img}">`:'<div style="width:64px;height:64px;background:#eee9df"></div>'}
+      <div class="ci-info">
+        <h4>${esc(p.name)}${i.size?` <span style="font-size:12px;color:var(--gold)">· Size ${esc(i.size)}</span>`:''}</h4>
+        <div style="font-size:13px;color:var(--smoke)">${CURRENCY}${Number(p.price).toLocaleString()}</div>
+        <div class="qty">
+          <button data-act="dec" data-idx="${idx}">−</button><span>${i.qty}</span><button data-act="inc" data-idx="${idx}">+</button>
+          <button class="remove" data-act="rm" data-idx="${idx}">Remove</button>
+        </div>
+      </div>`;
+    body.appendChild(el);
+  });
+  document.getElementById('cartCount').textContent = cart.reduce((s,i)=>s+i.qty,0);
+  const sub = cartTotal();
+  const del = deliveryFor(sub);
+  document.getElementById('cartSubtotal').textContent = CURRENCY + sub.toLocaleString();
+  document.getElementById('cartDelivery').textContent = del===0 && sub>0 ? 'FREE 🎉' : CURRENCY + del.toLocaleString();
+  const hint = document.getElementById('deliveryHint');
+  if(sub>0 && sub < HALF_DELIVERY_OVER){
+    hint.textContent = `Add ${CURRENCY}${(HALF_DELIVERY_OVER-sub).toLocaleString()} more for 50% off delivery!`;
+  } else if(sub >= HALF_DELIVERY_OVER && sub < FREE_DELIVERY_OVER){
+    hint.textContent = `Add ${CURRENCY}${(FREE_DELIVERY_OVER-sub).toLocaleString()} more for FREE delivery!`;
+  } else { hint.textContent = ''; }
+  document.getElementById('cartTotal').textContent = CURRENCY + (sub + del).toLocaleString();
+}
+document.getElementById('cartBody').addEventListener('click',e=>{
+  const idx = e.target.dataset.idx; if(idx===undefined) return;
+  const i = parseInt(idx);
+  if(e.target.dataset.act==='inc'){
+    const p = products.find(x=>x.id===cart[i].id);
+    const inCartTotal = cart.filter(x=>x.id===cart[i].id).reduce((s,x)=>s+x.qty,0);
+    const stockCap = (p && p.stock_qty!==null && p.stock_qty!==undefined) ? Number(p.stock_qty) : Infinity;
+    if(inCartTotal >= Math.min(MAX_PER_ITEM, stockCap)){
+      toast(inCartTotal >= stockCap ? `Only ${stockCap} available in stock` : `Maximum ${MAX_PER_ITEM} per item allowed`);
+      return;
+    }
+    cart[i].qty++;
+  }
+  if(e.target.dataset.act==='dec'){ cart[i].qty--; if(cart[i].qty<1) cart.splice(i,1); }
+  if(e.target.dataset.act==='rm') cart.splice(i,1);
+  renderCart();
+});
+
+const drawer=document.getElementById('drawer'), overlay=document.getElementById('overlay');
+document.getElementById('openCart').onclick=()=>{drawer.classList.add('open');overlay.classList.add('open')};
+document.getElementById('closeCart').onclick=closeDrawer;
+overlay.onclick=closeDrawer;
+function closeDrawer(){drawer.classList.remove('open');overlay.classList.remove('open')}
+
+/* ---------- checkout ---------- */
+document.getElementById('openCheckout').onclick=()=>{
+  if(!configured){toast('Store is not connected yet');return}
+  if(!cart.length){toast('Cart is empty');return}
+  closeDrawer();
+  const sub = cartTotal(), del = deliveryFor(sub);
+  document.getElementById('coSubtotal').textContent = CURRENCY + sub.toLocaleString();
+  document.getElementById('coDelivery').textContent = del===0 ? 'FREE 🎉' : CURRENCY + del.toLocaleString();
+  document.getElementById('coTotal').textContent = CURRENCY + (sub+del).toLocaleString();
+  openModal('checkoutModal');
+};
+document.getElementById('coPayment').addEventListener('change',e=>{
+  const v = e.target.value;
+  document.getElementById('payDetails').style.display = v==='cod' ? 'none' : 'block';
+  document.getElementById('payEasypaisa').style.display = v==='easypaisa' ? 'block' : 'none';
+  document.getElementById('payEasypaisa2').style.display = v==='easypaisa2' ? 'block' : 'none';
+  document.getElementById('payBank').style.display = v==='bank' ? 'block' : 'none';
+  document.getElementById('payBank2').style.display = v==='bank2' ? 'block' : 'none';
+});
+document.getElementById('placeOrder').onclick=async(e)=>{
+  const name=val('coName'), phone=val('coPhone'), city=val('coCity'), addr=val('coAddress');
+  if(!name||!phone||!addr){toast('Please fill name, phone, and address');return}
+  const items = cart.map(i=>{const p=products.find(x=>x.id===i.id);return{pid:p.id,name:p.name + (i.size?` (Size ${i.size})`:''),price:p.price,qty:i.qty}});
+  const subtotal = cartTotal();
+  const delivery = deliveryFor(subtotal);
+  const total = subtotal + delivery;
+  const confirmNum = document.getElementById('coConfirm').value;
+  const confirmLabel = document.getElementById('coConfirm').selectedOptions[0].textContent;
+  const payMethod = document.getElementById('coPayment').value;
+  const payLabel = {
+    cod:'Cash on Delivery',
+    easypaisa:'Easypaisa (0349 9361259 — Muhammad Faiz Rasheed)',
+    easypaisa2:'Easypaisa (0349 9308927 — Muhammad Zahir)',
+    bank:'Bank Transfer (Meezan 26010108119634 — Muhammad Faiz Rasheed)',
+    bank2:'Bank Transfer (JS Bank 2603501 — Muhammad Zahir)'
+  }[payMethod];
+  e.target.disabled = true;
+  const { error } = await db.from('orders').insert({
+    customer_name:name, phone, city, address: addr + '\n[Confirm via: ' + confirmLabel + ']', items, total, payment_method: payMethod
+  });
+  e.target.disabled = false;
+  if(error){ toast('Order failed: '+error.message); return; }
+
+  // Open a pre-filled WhatsApp message to the number the customer chose
+  const lines = items.map(i=>`• ${i.name} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}`).join('\n');
+  const payNote = payMethod==='cod' ? '' : '\n\n(I will send the payment screenshot in this chat)';
+  const msg = `New order — Bushido Leather\n\n${lines}\n\nSubtotal: ${CURRENCY}${subtotal.toLocaleString()}\nDelivery: ${delivery===0?'FREE':CURRENCY+delivery.toLocaleString()}\nTotal: ${CURRENCY}${total.toLocaleString()}\nPayment: ${payLabel}${payNote}\n\nName: ${name}\nPhone: ${phone}\nCity: ${city}\nAddress: ${addr}`;
+  window.open(`https://wa.me/${confirmNum}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  cart=[]; renderCart();
+  closeModal('checkoutModal');
+  ['coName','coPhone','coCity','coAddress'].forEach(id=>document.getElementById(id).value='');
+  toast('Order placed! We will contact you to confirm.');
+  loadProducts(); /* refresh stock counts */
+};
+function val(id){return document.getElementById(id).value.trim()}
+
+/* ---------- admin: login gate (hidden from customers) ---------- */
+/* Admin access: open the site with #admin at the end of the URL,
+   e.g. https://yoursite.vercel.app/#admin  — customers never see a login. */
+const adminLinkEl = document.getElementById('openAdmin');
+adminLinkEl.onclick = e => { e.preventDefault(); openAdminFlow(); };
+
+function refreshAdminLink(){
+  adminLinkEl.style.display = session ? 'inline' : 'none';
+}
+function checkAdminHash(){
+  if (location.hash === '#admin') {
+    if (session) { openAdminPanel(); } else { openModal('loginModal'); }
+  }
+}
+window.addEventListener('hashchange', checkAdminHash);
+function openAdminFlow(){
+  if(!configured){toast('Add your Supabase keys first (see the yellow box)');return}
+  if(session){ openAdminPanel(); } else { openModal('loginModal'); }
+}
+document.getElementById('togglePass').onclick=()=>{
+  const inp=document.getElementById('loginPass');
+  const show = inp.type==='password';
+  inp.type = show ? 'text' : 'password';
+  const btn=document.getElementById('togglePass');
+  btn.textContent = show ? '🙈' : '👁';
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+};
+document.getElementById('loginBtn').onclick=async(e)=>{
+  const email=val('loginEmail'), pass=document.getElementById('loginPass').value;
+  if(!email||!pass){toast('Enter email and password');return}
+  e.target.disabled=true;
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+  e.target.disabled=false;
+  if(error){ toast('Login failed: '+error.message); return; }
+  session = data.session;
+  refreshAdminLink();
+  closeModal('loginModal');
+  document.getElementById('loginPass').value='';
+  openAdminPanel();
+};
+document.getElementById('logoutBtn').onclick=async()=>{
+  await db.auth.signOut(); session=null;
+  refreshAdminLink();
+  if(location.hash==='#admin') history.replaceState(null,'',location.pathname);
+  closeModal('adminModal');
+  toast('Logged out');
+};
+function openAdminPanel(){
+  document.getElementById('adminEmail').textContent = session?.user?.email || '';
+  renderAdminList();
+  openModal('adminModal');
+}
+
+/* admin tabs */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('productsTab').style.display = t.dataset.tab==='productsTab'?'block':'none';
+  document.getElementById('ordersTab').style.display = t.dataset.tab==='ordersTab'?'block':'none';
+  if(t.dataset.tab==='ordersTab') loadOrders();
+});
+
+/* ---------- admin: product form ---------- */
+let pendingFiles = [];
+document.getElementById('pImage').addEventListener('change',e=>{
+  const files = Array.from(e.target.files||[]);
+  if(!files.length) return;
+  pendingFiles = [];
+  const row = document.getElementById('previewRow');
+  row.innerHTML = '';
+  files.forEach(f=>{
+    const img=new Image(), reader=new FileReader();
+    reader.onload=()=>{img.src=reader.result};
+    img.onload=()=>{
+      const max=900, scale=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=img.width*scale; c.height=img.height*scale;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>{ pendingFiles.push(b); },'image/jpeg',0.85);
+      const pv=document.createElement('img');
+      pv.src=c.toDataURL('image/jpeg',0.85);
+      pv.style.cssText='width:70px;height:70px;object-fit:cover;border:1px solid var(--line)';
+      row.appendChild(pv);
+    };
+    reader.readAsDataURL(f);
+  });
+});
+
+async function uploadImages(){
+  if(!pendingFiles.length) return null;
+  const urls = [];
+  for(let i=0;i<pendingFiles.length;i++){
+    const path = Date.now() + '-' + i + '.jpg';
+    const { error } = await db.storage.from('product-images').upload(path, pendingFiles[i], { contentType:'image/jpeg' });
+    if(error){ toast('Image upload failed: '+error.message); return null; }
+    const { data } = db.storage.from('product-images').getPublicUrl(path);
+    urls.push(data.publicUrl);
+  }
+  return urls;
+}
+
+document.getElementById('saveProduct').onclick=async(e)=>{
+  const name=val('pName'), price=parseFloat(document.getElementById('pPrice').value);
+  const cat=document.getElementById('pCat').value;
+  const description=val('pDesc'), sizes=val('pSizes');
+  const qtyRaw = document.getElementById('pQty').value;
+  const stock_qty = qtyRaw==='' ? null : Math.max(0, parseInt(qtyRaw));
+  const in_stock = stock_qty === null ? true : stock_qty > 0;
+  if(!name||isNaN(price)||price<0){toast('Enter a name and valid price');return}
+  e.target.disabled=true;
+  const urls = await uploadImages();
+  let error;
+  if(editingId){
+    const upd = { name, price, cat, description, sizes, in_stock, stock_qty };
+    if(urls){ upd.images = urls; upd.img = urls[0]; }
+    ({ error } = await db.from('products').update(upd).eq('id', editingId));
+  }else{
+    ({ error } = await db.from('products').insert({ name, price, cat, description, sizes, in_stock, stock_qty, images: urls || [], img: urls ? urls[0] : '' }));
+  }
+  e.target.disabled=false;
+  if(error){ toast('Save failed: '+error.message); return; }
+  toast(editingId ? 'Product updated' : 'Product added');
+  resetForm();
+  await loadProducts();
+};
+document.getElementById('cancelEdit').onclick=resetForm;
+function resetForm(){
+  editingId=null; pendingFiles=[];
+  ['pName','pPrice','pDesc','pSizes','pQty'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pImage').value='';
+  document.getElementById('previewRow').innerHTML='';
+  document.getElementById('saveProduct').textContent='Add product';
+  document.getElementById('cancelEdit').style.display='none';
+}
+function renderAdminList(){
+  const list=document.getElementById('adminList');
+  list.innerHTML = products.length? '' : '<p style="color:var(--smoke);padding:16px 0;font-size:14px">No products yet.</p>';
+  products.forEach(p=>{
+    const el=document.createElement('div');
+    el.className='admin-item';
+    el.innerHTML=`
+      ${p.img?`<img src="${p.img}">`:'<div style="width:48px;height:48px;background:#eee9df"></div>'}
+      <div class="ai-info">${esc(p.name)}<br><small>${p.cat} · ${CURRENCY}${Number(p.price).toLocaleString()} · ${(p.stock_qty===null||p.stock_qty===undefined)?'stock not set':'stock: '+p.stock_qty}</small></div>
+      <button class="icon-btn" data-edit="${p.id}">Edit</button>
+      <button class="icon-btn danger" data-del="${p.id}">Delete</button>`;
+    list.appendChild(el);
+  });
+}
+document.getElementById('adminList').addEventListener('click',async e=>{
+  const editId=e.target.dataset.edit, delId=e.target.dataset.del;
+  if(editId){
+    const p=products.find(x=>x.id===editId);
+    editingId=editId;
+    document.getElementById('pName').value=p.name;
+    document.getElementById('pPrice').value=p.price;
+    document.getElementById('pCat').value=p.cat;
+    document.getElementById('pDesc').value=p.description||'';
+    document.getElementById('pSizes').value=p.sizes||'';
+    document.getElementById('pQty').value=(p.stock_qty===null||p.stock_qty===undefined)?'':p.stock_qty;
+    const row=document.getElementById('previewRow'); row.innerHTML='';
+    const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
+    imgs.forEach(u=>{const pv=document.createElement('img');pv.src=u;pv.style.cssText='width:70px;height:70px;object-fit:cover;border:1px solid var(--line)';row.appendChild(pv)});
+    if(imgs.length){const note=document.createElement('div');note.style.cssText='font-size:11px;color:var(--smoke);width:100%';note.textContent='Current photos — selecting new files will replace all of them';row.appendChild(note)}
+    document.getElementById('saveProduct').textContent='Save changes';
+    document.getElementById('cancelEdit').style.display='inline-block';
+  }
+  if(delId){
+    if(!confirm('Delete this product? This cannot be undone.')) return;
+    const p = products.find(x=>x.id===delId);
+    /* clean up photos from storage */
+    const imgs = (p.images&&p.images.length)?p.images:(p.img?[p.img]:[]);
+    const paths = imgs.map(u=>{try{return decodeURIComponent(u.split('/product-images/')[1].split('?')[0])}catch(_){return null}}).filter(Boolean);
+    if(paths.length) await db.storage.from('product-images').remove(paths);
+    const { error } = await db.from('products').delete().eq('id', delId);
+    if(error){ toast('Delete failed: '+error.message); return; }
+    toast('Product deleted');
+    await loadProducts();
+  }
+});
+
+/* ---------- admin: orders ---------- */
+async function loadOrders(){
+  const wrap = document.getElementById('ordersList');
+  const { data, error } = await db.from('orders').select('*').order('created_at',{ascending:false}).limit(50);
+  if(error){ wrap.innerHTML = '<p style="color:var(--danger)">Could not load orders: '+esc(error.message)+'</p>'; return; }
+  /* cancelled orders disappear from this list 5 minutes after cancellation */
+  const visible = (data||[]).filter(o=>{
+    if((o.status||'new')!=='cancelled') return true;
+    if(!o.cancelled_at) return true;
+    return (Date.now() - new Date(o.cancelled_at).getTime()) < 5*60*1000;
+  });
+  if(!visible.length){ wrap.innerHTML = '<p style="color:var(--smoke);font-size:14px">No orders yet.</p>'; return; }
+  wrap.innerHTML = '';
+  const FLOW = ['new','confirmed','packing','shipped','delivered'];
+  const NEXT_LABEL = {new:'Confirm order',confirmed:'Start packing',packing:'Mark shipped',shipped:'Mark delivered'};
+  visible.forEach(o=>{
+    const d = new Date(o.created_at).toLocaleString();
+    const items = (o.items||[]).map(i=>`<li>${esc(i.name)} ×${i.qty} — ${CURRENCY}${(i.price*i.qty).toLocaleString()}</li>`).join('');
+    const st = o.status || 'new';
+    const stColor = st==='cancelled' ? 'var(--danger)' : st==='delivered' ? '#1f7a4d' : 'var(--gold)';
+    const idx = FLOW.indexOf(st);
+    const nextStatus = (idx>-1 && idx<FLOW.length-1) ? FLOW[idx+1] : null;
+    const el=document.createElement('div');
+    el.className='order-card';
+    el.innerHTML=`
+      <div class="oc-head"><b>${esc(o.customer_name)}</b><span class="status" style="border-color:${stColor};color:${stColor}">${esc(st)}</span></div>
+      <div style="color:var(--smoke);font-size:12px">${d}</div>
+      <ul>${items}</ul>
+      <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b> · <span style="font-size:12px;color:${o.payment_method==='cod'||!o.payment_method?'var(--smoke)':'#1f7a4d'}">${(o.payment_method||'cod').startsWith('easypaisa')?'💳 Easypaisa — verify payment!':(o.payment_method||'').startsWith('bank')?'🏦 Bank transfer — verify payment!':'💵 Cash on Delivery'}</span></div>
+      <div style="margin-top:6px;font-size:13px">📞 ${esc(o.phone)} · ${esc(o.city||'')}<br>📍 ${esc(o.address)}</div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="icon-btn" style="text-decoration:none" href="https://wa.me/92${esc(String(o.phone).replace(/\D/g,'').replace(/^0/,''))}" target="_blank" rel="noopener">WhatsApp customer</a>
+        ${nextStatus?`<button class="icon-btn" data-setstatus="${nextStatus}" data-oid="${o.id}">${NEXT_LABEL[st]}</button>`:''}
+        ${(st!=='cancelled'&&st!=='delivered')?`<button class="icon-btn danger" data-setstatus="cancelled" data-oid="${o.id}">Cancel order</button>`:''}
+      </div>`;
+    wrap.appendChild(el);
+  });
+}
+document.getElementById('ordersList').addEventListener('click',async e=>{
+  const status = e.target.dataset.setstatus, id = e.target.dataset.oid;
+  if(!status || !id) return;
+  if(status==='cancelled' && !confirm('Cancel this order? Stock will be restored automatically.')) return;
+  const upd = { status };
+  if(status==='cancelled') upd.cancelled_at = new Date().toISOString();
+  const { error } = await db.from('orders').update(upd).eq('id',id);
+  if(error){ toast('Update failed: '+error.message); return; }
+  toast('Order marked: '+status);
+  loadOrders();
+  loadProducts(); /* refresh stock counts */
+});
+
+/* ---------- modals & toast ---------- */
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+/* ---------- PWA: service worker + install button ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+}
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt',(e)=>{
+  e.preventDefault();
+  deferredInstall = e;
+  const btn = document.getElementById('installBtn');
+  if(btn) btn.style.display='inline-block';
+});
+document.addEventListener('click',(e)=>{
+  if(e.target && e.target.id==='installBtn' && deferredInstall){
+    deferredInstall.prompt();
+    deferredInstall.userChoice.then(()=>{ deferredInstall=null; e.target.style.display='none'; });
+  }
+});
+</script>
+</body>
+</html>
