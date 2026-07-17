@@ -167,7 +167,7 @@ footer a{color:var(--gold-soft);text-decoration:none}
 
 <header>
   <div class="nav">
-    <div class="logo">BUSHIDO <span>LEATHER</span><small>WATCHES · WALLETS · SHOES</small></div>
+    <a href="#" id="logoHome" style="text-decoration:none;color:inherit"><div class="logo">BUSHIDO <span>LEATHER</span><small>WATCHES · WALLETS · SHOES</small></div></a>
     <nav class="nav-links">
       <a href="#shop">Shop</a>
       <a href="#shop" data-filter="watch">Watches</a>
@@ -963,6 +963,12 @@ function toast(msg){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
 }
+
+document.getElementById('logoHome').onclick=e=>{
+  e.preventDefault();
+  window.scrollTo({top:0,behavior:'smooth'});
+  history.replaceState(null,'',location.pathname); /* clean any #hash from the URL */
+};
 
 /* ---------- customer reviews & ratings ---------- */
 let reviews = [];
