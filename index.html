@@ -999,6 +999,7 @@ async function loadOrders(){
       <ul>${items}</ul>
       <div><b>Total: ${CURRENCY}${Number(o.total).toLocaleString()}</b> · <span style="font-size:12px;color:${o.payment_method==='cod'||!o.payment_method?'var(--smoke)':'#1f7a4d'}">${(o.payment_method||'cod').startsWith('easypaisa')?'💳 Easypaisa — verify payment!':(o.payment_method||'').startsWith('bank')?'🏦 Bank transfer — verify payment!':'💵 Cash on Delivery'}</span></div>
       <div style="margin-top:6px;font-size:13px">📞 ${esc(o.phone)} · ${esc(o.city||'')}<br>📍 ${esc(o.address)}</div>
+      ${o.tracking_number?`<div style="margin-top:6px;font-size:13px;color:#1f7a4d">🚚 ${esc(o.courier||'Courier')} · Tracking: <b>${esc(o.tracking_number)}</b></div>`:''}
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
         <a class="icon-btn" style="text-decoration:none" href="https://wa.me/92${esc(String(o.phone).replace(/\D/g,'').replace(/^0/,''))}" target="_blank" rel="noopener">WhatsApp customer</a>
         ${nextStatus?`<button class="icon-btn" data-setstatus="${nextStatus}" data-oid="${o.id}">${NEXT_LABEL[st]}</button>`:''}
@@ -1008,6 +1009,39 @@ async function loadOrders(){
   });
 }
 document.getElementById('ordersList').addEventListener('click',async e=>{
+  /* Mark shipped → show inline tracking form first */
+  if(e.target.dataset.setstatus==='shipped' && !e.target.dataset.skipform){
+    const card = e.target.closest('.order-card');
+    if(card.querySelector('.ship-form')) return;
+    const oid = e.target.dataset.oid;
+    const f = document.createElement('div');
+    f.className='ship-form';
+    f.style.cssText='margin-top:10px;padding:12px;background:#fbf6ea;border:1px solid var(--gold)';
+    f.innerHTML=`
+      <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--smoke);margin-bottom:8px">Courier &amp; tracking number</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select class="ship-courier" style="padding:9px;border:1px solid var(--line)">
+          <option value="TCS">TCS</option><option value="Leopards">Leopards</option>
+          <option value="Trax">Trax</option><option value="PostEx">PostEx</option>
+          <option value="M&P">M&amp;P</option><option value="Other">Other</option>
+        </select>
+        <input class="ship-tn" placeholder="Tracking number" style="flex:1;min-width:140px;padding:9px;border:1px solid var(--line)">
+        <button class="icon-btn" data-shipsave="${oid}">Save &amp; mark shipped</button>
+      </div>`;
+    card.appendChild(f);
+    return;
+  }
+  if(e.target.dataset.shipsave){
+    const card = e.target.closest('.order-card');
+    const courier = card.querySelector('.ship-courier').value;
+    const tn = card.querySelector('.ship-tn').value.trim();
+    if(!tn){toast('Enter the tracking number');return}
+    const { error } = await db.from('orders').update({status:'shipped', courier, tracking_number:tn}).eq('id',e.target.dataset.shipsave);
+    if(error){toast('Update failed: '+error.message);return}
+    toast('Marked shipped with tracking');
+    loadOrders();
+    return;
+  }
   const status = e.target.dataset.setstatus, id = e.target.dataset.oid;
   if(!status || !id) return;
   if(status==='cancelled' && !confirm('Cancel this order? Stock will be restored automatically.')) return;
@@ -1258,10 +1292,25 @@ async function trackOrder(){
     </div>`;
   }).join('');
   const cancellable = o.status==='new';
+  const COURIER_LINKS = {
+    'TCS':'https://www.tcsexpress.com/track/',
+    'Leopards':'https://leopardscourier.com/leopards-tracking',
+    'Trax':'https://sonic.pk/tracking',
+    'PostEx':'https://postex.pk/tracking',
+    'M&P':'https://www.mulphilog.com/tracking'
+  };
+  const trackBlock = o.tracking_number
+    ? `<div style="margin-top:12px;padding:12px;background:#fbf6ea;border:1px solid var(--gold);font-size:14px">
+        🚚 Shipped via <b>${esc(o.courier||'courier')}</b><br>
+        Tracking number: <b style="letter-spacing:1px">${esc(o.tracking_number)}</b><br>
+        ${COURIER_LINKS[o.courier]?`<a href="${COURIER_LINKS[o.courier]}" target="_blank" rel="noopener" style="color:var(--gold)">Track your parcel on the ${esc(o.courier)} website →</a>`:''}
+       </div>`
+    : '';
   box.innerHTML=`<div style="border:1px solid var(--line);background:#fff;padding:18px">
     <div style="font-size:13px;color:var(--smoke)">Order ${esc(o.order_code)} · ${d} · Total ${CURRENCY}${Number(o.total).toLocaleString()}</div>
     <ul style="list-style:none;margin:8px 0;font-size:13px;color:var(--smoke)">${itemLines}</ul>
     ${timeline}
+    ${trackBlock}
     ${cancellable
       ?`<button class="btn ghost" id="trkCancel" style="margin-top:14px;color:var(--danger);border-color:#e6cfc9">Cancel this order</button>`
       :`<p style="font-size:12px;color:var(--smoke);margin-top:12px">Need a change? Contact us on <a href="https://wa.me/${ORDER_WHATSAPP}" target="_blank" rel="noopener" style="color:var(--gold)">WhatsApp</a>.</p>`}
